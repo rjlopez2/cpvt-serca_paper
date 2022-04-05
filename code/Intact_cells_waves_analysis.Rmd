@@ -1,0 +1,122 @@
+---
+title: "Waves_intact_cells"
+author: "Ruben Lopez"
+date: "3/26/2021"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+editor_options:
+  chunk_output_type: inline
+---
+
+# Analysis of Ca^2+^ waves in intact cells
+
+## Importing libraries
+
+We import the custom made package containing the functions and methods for the analysis of calcium waves.
+
+The package `{AnlysisOfWaves}` can be download like by un-comment the following chunk code:
+
+``` {.r}
+# install.packages("devtools")
+# devtools::install_github("rjlopez2/AnlysisOfWaves")
+```
+
+------------------------------------------------------------------------
+
+```{r, global-options, include=FALSE, echo=FALSE}
+knitr::opts_chunk$set(fig.width= 12, fig.asp = 0.5,
+                      echo=FALSE, warning=FALSE, message=FALSE)
+if (!require("pacman")) 
+  install.packages("pacman")
+
+pacman::p_load(AnlysisOfWaves, # custom functions for analysis
+               readxl, # read excel files
+               tidyverse, # data wrangling
+               ggpubr, ggbeeswarm, ggnewscale, colorspace, cowplot,# for data visualization
+               here, # folder's system navigation,
+               # lme4, 
+               broom.mixed) # tools for mixed effect model computation
+
+options("scipen" = 999, "digits" = 4)
+
+```
+
+## Create folder names to save results and plots
+
+```{r}
+# wave kinetics results folder
+output_results_wave_kinetics <- here("output_results",
+                                     "intact_cells",
+                                     "wave_kinetics")
+
+# wave frequency results folder
+output_results_wave_frequency <- here("output_results",
+                                     "intact_cells",
+                                     "wave_frequency")
+
+# wave frequency results folder
+output_results_wave_occurence <- here("output_results",
+                                     "intact_cells",
+                                     "wave_occurence")
+
+```
+
+## Loading the raw dataset from the excel file.
+
+This excel file contain the features extracted form the linescan images. They also contain relevant information such date, animal, treatments, etc.
+
+Features from the wave kinetics analysis were aggregated as average in this dataset. Later on we will load the raw individual values for the kinetics.
+
+```{r}
+
+df40 <-as.data.frame(read_xlsx(here("raw_data", 
+                                    "Cyto_waves",
+                                    "pooled_IntactCells_WL_WS_EAP_OCC_CAFF.xlsx"),
+                               sheet = 1, skip = 13))
+ df40
+```
+
+### Reformatting the dataset, repairing names, etc...
+
+```{r}
+
+df40 <- df40 %>% # Remove the "_mean" suffix of some variable names.
+  rename_all(~str_replace(., pattern = "_mean", replacement = ""))
+
+df40 <- df40[-17] # remove extra column "Wave_latency"
+colnames(df40) [16] <- "Wave_latency" # <- USE ONLY THIS variable for wave latency, since it's repeated
+colnames(df40) [18] <-  "Wave_Freq_Hz"
+colnames(df40) [24] <-  "EAP_Latency"
+
+# transforming in s units latency and EAP
+df40$Wave_latency <- df40$Wave_latency / 1000 # changing wave latency units from ms to seconds
+df40$EAP_Latency <- df40$EAP_Latency / 1000 # changing EAP latency units from ms to seconds
+
+
+# 5. Setting as factor several variables ----
+df40$Condition[df40$Condition == "Iso_3'"] <- "ISO"
+df40$Condition <- factor(df40$Condition, levels = c("Control", "ISO"))
+
+df40$Animal[df40$Animal == "CPVT-HET"] <- "CPVT"
+df40$Animal[df40$Animal == "CPVT-WT"] <- "WT"
+
+df40$Animal <- factor(df40$Animal, levels = c("WT", "CPVT"))
+df40$Animal_No <- factor(df40$Animal_No)
+
+df40$Date <- as.factor(df40$Date)
+
+
+# 6. making  new vector in my dataframe with the 4 experimental different groups 
+
+df40$Groups <- paste(df40$Condition, df40$Animal, sep = "_")
+df40$Groups <- factor(df40$Groups, levels = c("Control_WT", 
+                                                "Control_CPVT",
+                                                "ISO_WT",
+                                                "ISO_CPVT"))
+
+df40 <- df40 %>% 
+     mutate(Experiment = factor(str_sub(filename, 10, 15)),
+            core_name = str_sub(filename, 1, -5))
+```
