@@ -46,21 +46,17 @@ options("scipen" = 999, "digits" = 4)
 ## Create folder names to save results and plots
 
 ```{r}
-# wave kinetics results folder
-output_results_wave_kinetics <- here("output_results",
-                                     "intact_cells",
-                                     "wave_kinetics")
+# name of parameters for analysis
+parameters <- list("kinetics", "frequency", "occurence") %>% 
+                                purrr::set_names()
+# parameters
 
-# wave frequency results folder
-output_results_wave_frequency <- here("output_results",
-                                     "intact_cells",
-                                     "wave_frequency")
-
-# wave frequency results folder
-output_results_wave_occurence <- here("output_results",
-                                     "intact_cells",
-                                     "wave_occurence")
-
+# name of output directories for each parameter
+output_result <- map(parameters, ~(sprintf(here("results",
+                               "intact_cells",
+                               "wave_%s"), .x)))
+   
+# output_result
 ```
 
 ## Loading the raw dataset from the excel file.
