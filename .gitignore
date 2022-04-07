@@ -26,3 +26,4 @@ data/data.csv
 *.out
 .bash_history
 .wget-hsts
+.config/
