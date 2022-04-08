@@ -1,7 +1,7 @@
 ---
-title: "Waves_intact_cells"
+title: "Automatic report"
 author: "Ruben Lopez"
-date: "3/26/2021"
+date: "Generated on: `r format(Sys.time(), '%d.%m.%Y')`"
 output:
   html_document: default
   word_document: default
@@ -30,6 +30,7 @@ knitr::opts_chunk$set(
 pacman::p_load(AnlysisOfWaves, # custom functions for analysis and loading of additioanl libraries
                here, # folder's system navigation,
                readxl,
+               readr,
                purrr, dplyr, tidyr, stringr, kableExtra, # wrangling data
                broom.mixed) # tools for mixed effect model computation
 
@@ -237,41 +238,78 @@ We group and nest the data
 
 
 ```{r}
-nested_df <- df40_o %>% 
+all_parameters = c(wave_kinet_parameters,
+                   wave_lat_and_freq,
+                   trans_kinet_parameters,
+                   caff_parameters)
+
+
+nested_df <- df40_o %>%
+ # df40_o %>%
   # mutate()
   select(!starts_with(c("Gender", "Protocol", "Chip", "notes",  "Total")) &
            !contains(c("ms", "EAP", "Age", "t50")) & 
            where(~  is.numeric(.x) || is.factor(.x))) %>% 
-  # head
-  # names
-  # str()
-  pivot_longer(cols = as.character(c(wave_kinet_parameters, wave_lat_and_freq, trans_kinet_parameters, caff_parameters)), names_to = "parameters" ) %>%
-  group_by(parameters) %>% 
-  nest()
-  
-  
-nested_df%>% 
-  pull(data) %>% 
-  head(1)
-
-
+  pivot_longer(cols = as.character(all_parameters), names_to = "variables" ) %>%
+  group_by(variables) %>%
+  nest #%>% 
+   
+nested_df
 ```
 
 
 
-YOu are here -> NOTE: to make properly the summary stats, you need first to subset the data for analysis respectively
+You are here -> NOTE: to make properly the summary stats, you need first to subset the data for analysis respectively
+
+
+##### Wave kinetics
+
+
+summary of wave kinetics parameters
 
 ```{r}
-nested_df %>% 
-  mutate(summary = map( data, ~my_summ_stat_func(.x, round_to = 2) %>% 
-                          pivot_longer(where(is.double)) %>% 
-                          drop_na(value) %>%
-                          mutate(Parameters = str_sub(Parameters, 
-                                                      start = 1, end = 5)) %>%
-                          pivot_wider(values_from = value, 
-                                      names_from = name))) %>% 
-  pull(summary)
+
+test <- nested_df %>%
+  # nested_df %>%
+  filter(variables %in% as.character(wave_kinet_parameters)) %>% 
+  # pull(data)
+  mutate(data = map(data, ~(.x %>% 
+                              filter(`For_Wave_Kinetics_Analysis?` == "yes") ))) %>% 
+  describe_nested_df(targed_dataset = "data")
+
 ```
+
+```{r results='show', include=TRUE}
+test %>% 
+  unnest(described) %>% 
+  arrange(variables, Condition) %>% 
+  select(-data, -Parameters, -where(is.list)) %>% 
+  kable() %>% 
+  kable_styling(font_size = 8)
+```
+
+
+
+### Export results
+
+```{r}
+test %>% 
+  unnest(described) %>% 
+  arrange(variables, Condition) %>% 
+  select(-data, -Parameters, -where(is.list)) %>% 
+  write_csv(paste(output_results_dir$kinetics, 
+                  paste(format(Sys.time(),
+                               '%Y%m%d'),
+                        "summary_stats.csv",
+                        sep = "_"), sep = "/"))
+  
+```
+
+
+
+
+
+
 # outline 
 
 - 1. Descriptive stats and export results 
