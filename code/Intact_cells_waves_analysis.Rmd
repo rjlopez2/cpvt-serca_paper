@@ -11,74 +11,89 @@ editor_options:
 
 # Analysis of Ca^2+^ waves in intact cells
 
-## Importing libraries
 
-We import the custom made package containing the functions and methods for the analysis of calcium waves.
 
-The package `{AnlysisOfWaves}` can be download like by un-comment the following chunk code:
-
-``` {.r}
-# install.packages("devtools")
-# devtools::install_github("rjlopez2/AnlysisOfWaves")
+```{r, setup, echo=FALSE}
+## Setting enviroment
+knitr::opts_chunk$set(
+  comment = '', fig.width= 6, fig.asp = 0.8, warning=FALSE, message=FALSE, results='hide', include=FALSE, echo=FALSE)
 ```
+
+
 
 ------------------------------------------------------------------------
 
-```{r, global-options, include=FALSE, echo=FALSE, results='hide'}
-knitr::opts_chunk$set(fig.width= 12, fig.asp = 0.5,
-                      echo=FALSE, warning=FALSE, message=FALSE)
-if (!require("pacman")) 
-  install.packages("pacman")
+```{r}
 
-pacman::p_load(AnlysisOfWaves, # custom functions for analysis
-               readxl, # read excel files
-               tidyverse, # data wrangling
-               ggpubr, ggbeeswarm, ggnewscale, colorspace, cowplot,# for data visualization
+############# Importing libraries #############
+
+pacman::p_load(AnlysisOfWaves, # custom functions for analysis and loading of additioanl libraries
                here, # folder's system navigation,
-               # lme4, 
+               readxl,
+               purrr, dplyr, tidyr, stringr, kableExtra, # wrangling data
                broom.mixed) # tools for mixed effect model computation
 
 options("scipen" = 999, "digits" = 4)
 
 ```
 
-## Create folder names to save results and plots
+
 
 ```{r}
+
+############# Create folder and names structure #############
+
 # name of parameters for analysis
 parameters <- list("kinetics", "frequency", "occurence") %>% 
                                 purrr::set_names()
-# parameters
+parameters
 
 # name of output directories for each parameter
-output_result <- map(parameters, ~(sprintf(here("results",
+output_results_dir <- map(parameters, ~(sprintf(here("results",
                                "intact_cells",
                                "wave_%s"), .x)))
-   
+   output_results_dir
 # output_result
+
+
+# name of output directories for figures
+# output_figs_dir <- bind_cols(list(laten_and_freq = "Figures/Intact_cells/Waves_late_freq_occu" , 
+#                              wave_kinet = "Figures/Intact_cells/Waves_kinetics", 
+#                              combi_panel = "Figures/Intact_cells/Combined_pannel"))
+
+   output_figs_dir <-here("figures", "Intact_cells") %>% 
+     list() %>% 
+     set_names(nm = "intact_cells")
+    # dir.exists()
+    
+    
+output_figs_dir$intact_cells
 ```
 
-## Loading the raw dataset from the excel file.
 
-This excel file contain the features extracted form the linescan images. They also contain relevant information such date, animal, treatments, etc.
+We load the excel file containing the features extracted form the linescan images. They also contain relevant additional information such as date, animal, treatments, etc.
 
-Features from the wave kinetics analysis were aggregated as average in this dataset. Later on we will load the raw individual values for the kinetics.
 
 ```{r}
+
+############# Loading the raw dataset from the excel file ############# 
 
 df40 <-as.data.frame(read_xlsx(here("datasets", 
                                     "intact_cells",
                                     "pooled_IntactCells_WL_WS_EAP_OCC_CAFF.xlsx"),
                                sheet = 1, skip = 13))
- df40
+ df40 %>% 
+   head
 ```
 
-### Reformatting the dataset, repairing names, etc...
+
 
 ```{r}
 
+############# repare names, etc ############# 
+
 df40 <- df40 %>% # Remove the "_mean" suffix of some variable names.
-  rename_all(~str_replace(., pattern = "_mean", replacement = ""))
+  rename_all(~str_replace(., pattern = "_mean", replacement = "")) 
 
 df40 <- df40[-17] # remove extra column "Wave_latency"
 colnames(df40) [16] <- "Wave_latency" # <- USE ONLY THIS variable for wave latency, since it's repeated
@@ -92,36 +107,185 @@ df40$EAP_Latency <- df40$EAP_Latency / 1000 # changing EAP latency units from ms
 
 # 5. Setting as factor several variables ----
 df40$Condition[df40$Condition == "Iso_3'"] <- "ISO"
-df40$Condition <- factor(df40$Condition, levels = c("Control", "ISO"))
+# df40$Condition <- factor(df40$Condition, levels = c("Control", "ISO"))
 
 df40$Animal[df40$Animal == "CPVT-HET"] <- "CPVT"
 df40$Animal[df40$Animal == "CPVT-WT"] <- "WT"
 
-df40$Animal <- factor(df40$Animal, levels = c("WT", "CPVT"))
-df40$Animal_No <- factor(df40$Animal_No)
+df40 <- df40 %>%
+  # df40 %>% 
+    mutate(Groups = factor(paste(Condition,
+                                 Animal ,
+                                 sep = "_"),
+                           levels = c("Control_WT",
+                                      "Control_CPVT",
+                                      "ISO_WT",
+                                      "ISO_CPVT"))) %>%
+    mutate(across(starts_with(c("Date", "Condition", "Animal", "For")), as.factor) ) %>%
+    mutate(Experiment = factor(str_sub(filename, 10, 15)),
+           core_name = str_sub(filename, 1, -5),
+           filename = factor(filename),
+           Animal = factor(Animal, levels = c("WT", "CPVT"))) 
 
-df40$Date <- as.factor(df40$Date)
 
-
-# 6. making  new vector in my dataframe with the 4 experimental different groups 
-
-df40$Groups <- paste(df40$Condition, df40$Animal, sep = "_")
-df40$Groups <- factor(df40$Groups, levels = c("Control_WT", 
-                                                "Control_CPVT",
-                                                "ISO_WT",
-                                                "ISO_CPVT"))
-
-df40 <- df40 %>% 
-     mutate(Experiment = factor(str_sub(filename, 10, 15)),
-            core_name = str_sub(filename, 1, -5))
 ```
 
 
-This is the head of yor dataframe after cleaning
+We define a time window (in seconds) threshold for later determine the occurrence of waves and frequency.
 
-```{r results='show'}
+```{r}
+wave_or_EAP_threshold <- 10
+```
 
-df40 %>% head
+which is `r wave_or_EAP_threshold` seconds. 
+
+### Create variables namespace
+
+We take the columns names from the excel sheet and create the set of variables names of the various features of interest for later use.
+
+```{r}
+
+# this are the variables names for spontaneous waves kinetics (de-skewed)
+wave_kinet_parameters <- df40 %>%
+  select(starts_with("Wave_") / (contains(c("50", "late", "Freq")))) %>% 
+  names() %>% 
+  rev() %>% # revert order
+  set_names() %>% 
+  map(~.x) 
+
+
+# this are the variables names for spontaneous waves occurrence and frequency
+wave_lat_and_freq <- df40 %>%
+  select(starts_with("Wave_") / contains("5") & ends_with(c("cy", "Hz"))) %>%
+  names() %>% 
+  set_names() %>% 
+  map(~.x) 
+
+# this are the variables names for spontaneous electrical-stimulated Calcium transients 
+trans_kinet_parameters <- df40 %>%
+  select(starts_with("Trans_") / (contains(c("50", "late", "Freq")))) %>%
+  names() %>% 
+  rev() %>% # revert order
+  set_names() %>% 
+  map(~.x) 
+
+
+# log10_wave_kinet_parameters <- wave_kinet_parameters %>% 
+#   names %>%
+#   set_names(nm = paste0("log10_",.)) %>% 
+#   map(~paste0("log10_",.x))
+
+
+# this are the variables names for Caffeine-induced transients 
+caff_parameters <- df40 %>%
+  select(starts_with("Caff") / (contains(c("50")))) %>%
+  names() %>% 
+  rev() %>% # revert order
+  set_names() %>% 
+  map(~.x) 
+
 
 ```
+
+### Keep only ok experiments
+
+Based on the notes, We take only the subset of the dataset that were considered good for analysis, that is, successful experiments.
+
+```{r}
+
+#filtering: removing no responding experiments
+df40$`For_Wave_Kinetics_Analysis?`[df40$core_name %in% c("20181115 L1 CS1 Cell A0002", "20190118 L2 CS4 Cell A0002", 
+                                                             "20181213 L1 CS3 Cell A0001", "20181213 L1 CS3 Cell A0002")] <- "no"
+
+# 6. Taking only the data for Occurrency analysis = yes ----
+
+df40_o <- (subset(df40, df40$`For Occu Analysis?`== "yes"))
+
+rm(df40)
+
+```
+
+
+And this is how it looks a subset of the the curated dataset 
+
+```{r results='show', include=TRUE}
+
+df40_o %>% 
+  head %>% 
+  kable() %>% 
+  kable_styling(font_size = 7)
+
+```
+
+
+# Statistics
+
+## Descriptive stats
+
+We compute descriptive statistics to observe the data quality, trend, etc...
+
+##### Wave kinetics
+
+```{r}
+# df40_o %>% 
+#   filter(`For_Wave_Kinetics_Analysis?` == "yes") %>%
+#   clean_and_tidy_df_func(vars_for_analysis = wave_kinet_parameters) %>% 
+#   my_summ_stat_func()
+```
+
+We group and nest the data
+
+
+```{r}
+nested_df <- df40_o %>% 
+  # mutate()
+  select(!starts_with(c("Gender", "Protocol", "Chip", "notes",  "Total")) &
+           !contains(c("ms", "EAP", "Age", "t50")) & 
+           where(~  is.numeric(.x) || is.factor(.x))) %>% 
+  # head
+  # names
+  # str()
+  pivot_longer(cols = as.character(c(wave_kinet_parameters, wave_lat_and_freq, trans_kinet_parameters, caff_parameters)), names_to = "parameters" ) %>%
+  group_by(parameters) %>% 
+  nest()
+  
+  
+nested_df%>% 
+  pull(data) %>% 
+  head(1)
+
+
+```
+
+
+
+YOu are here -> NOTE: to make properly the summary stats, you need first to subset the data for analysis respectively
+
+```{r}
+nested_df %>% 
+  mutate(summary = map( data, ~my_summ_stat_func(.x, round_to = 2) %>% 
+                          pivot_longer(where(is.double)) %>% 
+                          drop_na(value) %>%
+                          mutate(Parameters = str_sub(Parameters, 
+                                                      start = 1, end = 5)) %>%
+                          pivot_wider(values_from = value, 
+                                      names_from = name))) %>% 
+  pull(summary)
+```
+# outline 
+
+- 1. Descriptive stats and export results 
+
+YOu are here -> NOTE: to make properly the summary stats, you need first to subset the data for analysis respectively
+
+- 2. Hypothesis testing (make mix model) and export results
+
+- 3. Standard Plot and export figures
+
+- 4. Repre traces and export results. 
+
+- 5. render all images in this document?
+
+
+
 
