@@ -9,7 +9,7 @@ RUN MRAN=https://mran.revolutionanalytics.com/snapshot/${BUILD_DATE} \
   && export MRAN=$MRAN \
   && echo "options(repos = c(CRAN='$MRAN'), download.file.method = 'libcurl')" >> /usr/local/lib/R/etc/Rprofile.site
 
-RUN installGithub.r rjlopez2/AnlysisOfWaves
+RUN installGithub.r rjlopez2/AnlysisOfWaves@54f11e0
 
 RUN install2.r --error --skipinstalled \
   pacman here broom.mixed markdown kableExtra
