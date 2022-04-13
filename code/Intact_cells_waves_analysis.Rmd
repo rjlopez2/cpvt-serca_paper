@@ -31,6 +31,7 @@ pacman::p_load(AnlysisOfWaves, # custom functions for analysis and loading of ad
                here, # folder's system navigation,
                readxl,
                readr,
+               cowplot,
                purrr, dplyr, tidyr, stringr, kableExtra, # wrangling data
                broom.mixed) # tools for mixed effect model computation
 
@@ -213,7 +214,7 @@ And this is how it looks a subset of the the curated dataset
 
 df40_o %>% 
   head %>% 
-  kable() %>% 
+  kable(format= "latex", booktabs = T) %>% 
   kable_styling(font_size = 7)
 
 ```
@@ -234,10 +235,13 @@ We compute descriptive statistics to observe the data quality, trend, etc...
 #   my_summ_stat_func()
 ```
 
-We group and nest the data
+
 
 
 ```{r}
+
+# We group and nest the data
+
 all_parameters = c(wave_kinet_parameters,
                    wave_lat_and_freq,
                    trans_kinet_parameters,
@@ -245,14 +249,12 @@ all_parameters = c(wave_kinet_parameters,
 
 
 nested_df <- df40_o %>%
- # df40_o %>%
-  # mutate()
-  select(!starts_with(c("Gender", "Protocol", "Chip", "notes",  "Total")) &
+ select(!starts_with(c("Gender", "Protocol", "Chip", "notes",  "Total")) &
            !contains(c("ms", "EAP", "Age", "t50")) & 
            where(~  is.numeric(.x) || is.factor(.x))) %>% 
   pivot_longer(cols = as.character(all_parameters), names_to = "variables" ) %>%
   group_by(variables) %>%
-  nest #%>% 
+  nest 
    
 nested_df
 ```
@@ -265,14 +267,12 @@ You are here -> NOTE: to make properly the summary stats, you need first to subs
 ##### Wave kinetics
 
 
-summary of wave kinetics parameters
+Compute and export summary of wave kinetics parameters
 
 ```{r}
 
-test <- nested_df %>%
-  # nested_df %>%
+wave_kinetics_df_nest <- nested_df %>%
   filter(variables %in% as.character(wave_kinet_parameters)) %>% 
-  # pull(data)
   mutate(data = map(data, ~(.x %>% 
                               filter(`For_Wave_Kinetics_Analysis?` == "yes") ))) %>% 
   describe_nested_df(targed_dataset = "data")
@@ -280,20 +280,31 @@ test <- nested_df %>%
 ```
 
 ```{r results='show', include=TRUE}
-test %>% 
+wave_kinetics_df_nest %>% 
   unnest(described) %>% 
   arrange(variables, Condition) %>% 
   select(-data, -Parameters, -where(is.list)) %>% 
-  kable() %>% 
-  kable_styling(font_size = 8)
+  # kableExtra::kable(format = "latex", booktabs = T)
+  kable %>%
+  kable_styling(font_size = 7)
 ```
 
+QQ-plots of wave kinetics parameters
+
+
+```{r results='show', include=TRUE, collapse = TRUE, fig.width=6, fig.asp = 1.6, out.width='200%'}
+knitr::opts_chunk$set(fig.width = 12)
+wave_kinetics_df_nest %>% 
+  pull(qq_plot) %>% 
+  plot_grid(plotlist = ., ncol = 1)
+  
+```
 
 
 ### Export results
 
 ```{r}
-test %>% 
+wave_kinetics_df_nest %>% 
   unnest(described) %>% 
   arrange(variables, Condition) %>% 
   select(-data, -Parameters, -where(is.list)) %>% 
@@ -307,16 +318,13 @@ test %>%
 
 
 
-
-
-
 # outline 
 
 - 1. Descriptive stats and export results 
 
 YOu are here -> NOTE: to make properly the summary stats, you need first to subset the data for analysis respectively
 
-- 2. Hypothesis testing (make mix model) and export results
+- 2. Hypothesis sting (make mix model) and export results
 
 - 3. Standard Plot and export figures
 
