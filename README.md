@@ -76,7 +76,7 @@ sessioninfo::session_info()
 #> ─ Session info ───────────────────────────────────────────────────────────────
 #>  setting  value
 #>  version  R version 4.1.1 (2021-08-10)
-#>  os       macOS Big Sur 10.16
+#>  os       macOS Monterey 12.3
 #>  system   x86_64, darwin17.0
 #>  ui       X11
 #>  language (EN)
@@ -107,4 +107,11 @@ sessioninfo::session_info()
 #>  [1] /Library/Frameworks/R.framework/Versions/4.1/Resources/library
 #> 
 #> ──────────────────────────────────────────────────────────────────────────────
+# 
+# Sys.getenv("R_HOME")
+# readLines("/System/Library/CoreServices/SystemVersion.plist")
+# utils:::.osVersion()
+# 
+# debug(utils:::.osVersion)
+# utils:::.osVersion()
 ```

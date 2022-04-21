@@ -11,6 +11,7 @@ knitr::opts_chunk$set(
 )
 ```
 
+
 # cpvt-serca_paper
 
 This is the accompanying GitHub repository to a work in progress paper by Ruben Lopez[![ORCID iD](https://orcid.org/sites/default/files/images/orcid_16x16.png)](https://orcid.org/0000-0002-3802-3158) 
@@ -69,4 +70,12 @@ git pull && make rebuild && make -B DOCKER=TRUE
 
 ```{r}
 sessioninfo::session_info()
+# 
+# Sys.getenv("R_HOME")
+# readLines("/System/Library/CoreServices/SystemVersion.plist")
+# utils:::.osVersion()
+# 
+# debug(utils:::.osVersion)
+# utils:::.osVersion()
+
 ```
