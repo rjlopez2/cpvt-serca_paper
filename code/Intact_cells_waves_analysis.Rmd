@@ -70,6 +70,8 @@ output_results_dir <- map(parameters, ~(sprintf(here("results",
     
     
 output_figs_dir$intact_cells
+
+table_output_font_size = 10
 ```
 
 
@@ -214,10 +216,19 @@ And this is how it looks a subset of the the curated dataset
 
 df40_o %>% 
   head %>% 
-  kable(format= "latex", booktabs = T) %>% 
-  kable_styling(font_size = 7)
+  kable %>%
+  kable_styling(font_size = table_output_font_size)
+  # kable(format= "latex", booktabs = T) %>% 
 
 ```
+
+```{r}
+df40_o %>% 
+  # names
+  distinct(filename) %>% 
+  arrange(desc(filename))
+```
+
 
 
 # Statistics
@@ -226,7 +237,7 @@ df40_o %>%
 
 We compute descriptive statistics to observe the data quality, trend, etc...
 
-##### Wave kinetics
+
 
 ```{r}
 # df40_o %>% 
@@ -235,7 +246,7 @@ We compute descriptive statistics to observe the data quality, trend, etc...
 #   my_summ_stat_func()
 ```
 
-
+we nest the full raw dataset.
 
 
 ```{r}
@@ -264,7 +275,7 @@ nested_df
 You are here -> NOTE: to make properly the summary stats, you need first to subset the data for analysis respectively
 
 
-##### Wave kinetics
+### Wave kinetics
 
 
 Compute and export summary of wave kinetics parameters
@@ -272,12 +283,16 @@ Compute and export summary of wave kinetics parameters
 ```{r}
 
 wave_kinetics_df_nest <- nested_df %>%
-  filter(variables %in% as.character(wave_kinet_parameters)) %>% 
+  filter(variables %in% as.character(wave_kinet_parameters)) %>% #take only the datad=set for wavekinetics
   mutate(data = map(data, ~(.x %>% 
                               filter(`For_Wave_Kinetics_Analysis?` == "yes") ))) %>% 
   describe_nested_df(targed_dataset = "data")
 
+
+wave_kinetics_df_nest
 ```
+
+Here are the summary statistics of the wave kinetics parameters: `r as.character(wave_kinet_parameters)`
 
 ```{r results='show', include=TRUE}
 wave_kinetics_df_nest %>% 
@@ -286,22 +301,33 @@ wave_kinetics_df_nest %>%
   select(-data, -Parameters, -where(is.list)) %>% 
   # kableExtra::kable(format = "latex", booktabs = T)
   kable %>%
-  kable_styling(font_size = 7)
+  kable_styling(font_size = table_output_font_size)
 ```
 
-QQ-plots of wave kinetics parameters
+#### QQ-plots of wave kinetics parameters
 
 
-```{r results='show', include=TRUE, collapse = TRUE, fig.width=6, fig.asp = 1.6, out.width='200%'}
+```{r}
+wave_kinetics_df_nest %>% 
+  mutate(qq_plot = map(qq_plot, ~.x +  
+                         ggplot2::scale_colour_manual(values = c("#666666", 
+                                                                 "#CC0000")) + 
+                         pptx_presentation_theme_func(base_size = 12))) %>% 
+  pluck("qq_plot", 1)
+```
+
+
+
+```{r results='show', include=TRUE, collapse = TRUE, fig.width=12, fig.asp = 0.3, out.width='100%'}
 knitr::opts_chunk$set(fig.width = 12)
 wave_kinetics_df_nest %>% 
   pull(qq_plot) %>% 
-  plot_grid(plotlist = ., ncol = 1)
+  plot_grid(plotlist = ., ncol = 3)
   
 ```
 
 
-### Export results
+#### Export results
 
 ```{r}
 wave_kinetics_df_nest %>% 
@@ -316,13 +342,62 @@ wave_kinetics_df_nest %>%
   
 ```
 
+### Frequency and latency
 
+```{r}
+wave_freq_df_nest <- nested_df %>%
+  filter(variables %in% as.character(wave_lat_and_freq)) %>% #take only the datad=set for wavekinetics
+  mutate(data = map(data, ~(.x %>% 
+                              filter(`For Occu Analysis?` == "yes") ))) %>% 
+  describe_nested_df(targed_dataset = "data")
+
+wave_freq_df_nest
+```
+
+Here are the summary statistics of the wave frequency parameters: `r as.character(wave_lat_and_freq)`
+
+```{r results='show', include=TRUE}
+wave_freq_df_nest %>% 
+  unnest(described) %>% 
+  arrange(variables, Condition) %>% 
+  select(-data, -Parameters, -where(is.list)) %>% 
+  # kableExtra::kable(format = "latex", booktabs = T)
+  kable %>%
+  kable_styling(font_size = table_output_font_size)
+
+```
+
+#### QQ-plots of wave kinetics parameters
+
+
+```{r results='show', include=TRUE, collapse = TRUE, fig.width=6, fig.asp = 1.6, out.width='200%'}
+knitr::opts_chunk$set(fig.width = 12)
+wave_freq_df_nest %>% 
+  pull(qq_plot) %>% 
+  plot_grid(plotlist = ., ncol = 1)
+  
+```
+
+#### Export results
+
+```{r}
+wave_freq_df_nest %>% 
+  unnest(described) %>% 
+  arrange(variables, Condition) %>% 
+  select(-data, -Parameters, -where(is.list)) %>% 
+  write_csv(paste(output_results_dir$frequency, 
+                  paste(format(Sys.time(),
+                               '%Y%m%d'),
+                        "summary_stats.csv",
+                        sep = "_"), sep = "/"))
+  
+```
 
 # outline 
 
 - 1. Descriptive stats and export results 
 
-YOu are here -> NOTE: to make properly the summary stats, you need first to subset the data for analysis respectively
+YOu are here -> NOTE: to make properly the summary stats, you need first to subset the data for analysis of each variable respectively
 
 - 2. Hypothesis sting (make mix model) and export results
 
