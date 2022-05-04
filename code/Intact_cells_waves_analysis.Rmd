@@ -27,14 +27,14 @@ knitr::opts_chunk$set(
 
 ############# Importing libraries #############
 
-pacman::p_load(AnlysisOfWaves, # custom functions for analysis and loading of additioanl libraries
-               here, # folder's system navigation,
+pacman::p_load(AnlysisOfWaves, # custom functions for analysis and loading of additional libraries
+               here, fs, # folder's system navigation,
                readxl,
                readr,
                cowplot,
                purrr, dplyr, tidyr, stringr, kableExtra, # wrangling data
-               ggplot2, # ploting
-               lmerTest, broom.mixed) # tools for mixed effect model computation
+               ggplot2, # piloting
+               lmerTest, broom.mixed, emmeans) # tools for mixed effect model computation and multiple comparison
 
 options("scipen" = 999, "digits" = 4)
 
@@ -55,7 +55,7 @@ parameters
 output_results_dir <- map(parameters, ~(sprintf(here("results",
                                "intact_cells",
                                "wave_%s"), .x)))
-   output_results_dir
+output_results_dir
 # output_result
 
 
@@ -64,15 +64,17 @@ output_results_dir <- map(parameters, ~(sprintf(here("results",
 #                              wave_kinet = "Figures/Intact_cells/Waves_kinetics", 
 #                              combi_panel = "Figures/Intact_cells/Combined_pannel"))
 
-   output_figs_dir <-here("figures", "Intact_cells") %>% 
-     list() %>% 
-     set_names(nm = "intact_cells")
+output_figs_dir <-here("figures", "intact_cells") %>% 
+  list() %>% 
+  set_names(nm = "intact_cells")
     # dir.exists()
     
     
 output_figs_dir$intact_cells
 
 table_output_font_size = 10
+
+output_figs_dir
 ```
 
 
@@ -438,7 +440,14 @@ inter_mixmodel <- function(my_dataset){
 model_raw_nsdf <- wave_kinetics_df_nest %>% 
   select(data) %>% 
   apply_model_func(my_model = nointer_mixmodel) %>% 
-  apply_model_func(my_model = inter_mixmodel)
+  apply_model_func(my_model = inter_mixmodel) %>% 
+  pivot_longer(cols = ends_with("model"), 
+               names_to = "model_name", 
+               values_to = "model")
+  
+
+# model_raw_nsdf
+  
 ```
 >NOTE:this two functions should go to the package `extract_model_info` and `plot_residuals`
 
@@ -446,9 +455,9 @@ model_raw_nsdf <- wave_kinetics_df_nest %>%
 extract_model_info <- function(ns_df){
   my_parameter_name <- sym(names(ns_df)[1])
   ns_df %>% 
-  pivot_longer(cols = ends_with("model"), 
-               names_to = "model_name", 
-               values_to = "model") %>% 
+  # pivot_longer(cols = ends_with("model"), 
+  #              names_to = "model_name", 
+  #              values_to = "model") %>% 
     mutate(across(model,
                 list(glance = ~ map(.x, ~ broom::glance(.x)),
                      tidy =  ~ map(.x, ~ broom::tidy(.x)),
@@ -512,7 +521,7 @@ plot_residuals <- function(model_nsdf, augmented_df = "augment"){
 
 
 
-Extract information from the model and Inspect model performance
+Extract information and Inspect model performance
 
 ```{r}
 model_results_nsdf <- model_raw_nsdf %>% 
@@ -534,21 +543,153 @@ wave_kinet_parameters %>%
   plot_grid(plotlist = ., ncol = 1)
 ```
 
+### Make Contrast
+
+firat we design a matrix to make the mdesired comparisons
+
+```{r}
+emmens_ns_df$em_means[[1]] %>% 
+  coef
+
+```
+
+```{r}
+contrast_matrix <- list("WT_Control vs CPVT_Control" = c(1, 0, 0, 0) - c(0, 1, 0, 0),
+                        "WT_ISO vs CPVT_IS0" = c(0, 0, 1, 0) - c(0, 0, 0, 1))
+contrast_matrix
+```
+
+
+```{r}
+emmens_ns_df <- model_raw_nsdf %>%
+# model_raw_nsdf %>%
+  # filter(str_detect(model_name, "no")) %>% 
+  mutate(em_means = map2(data, model, ~ emmeans(object =  .y, 
+                                                specs =  ~ Animal * Condition, 
+                                                data = .x)),
+         # estimates = map(em_means, ~(.x$emmeans %>%
+         estimates = map(em_means, ~(.x %>%
+                                       as_tibble %>%
+                                       drop_na %>%
+                                       mutate(across(where(is.double),
+                                                     ~ round(.x, digits =2))))),
+         # contrasts = map(em_means, ~(.x$contrasts %>% 
+         #                               as_tibble %>% 
+         #                               drop_na %>% 
+         #                               mutate(across(where(is.double), 
+         #                                             ~ round(.x, digits =2))))))#,
+         contrast = map(em_means, ~(.x %>%
+                                        contrast(method = contrast_matrix, adjust = "BH") %>%
+                                        as_tibble %>%
+                                        drop_na %>%
+                                        mutate(across(where(is.double),
+                                                      ~ round(.x, digits =2)))))) #%>%
+  # pluck("contrast_2", 2)
+  # pluck("em_means", 2)
+
+emmens_ns_df
+
+```
+
+```{r}
+emmens_ns_df %>% 
+  select(variables, model_name, contrast) %>% 
+  unnest(cols = contrast) %>% 
+  filter(!str_detect(model_name, "no"))
+```
+
+
+```{r}
+contrast(emmens_ns_df$em_means[[1]], contrast_matrix)
+
+emmens_ns_df$em_means[[1]][[2]] %>%
+# emmens_ns_df$model[[1]] %>% 
+  coef
+```
+
+
+```{r}
+emmens_ns_df #%>% 
+  filter(str_detect(variables, "FF0")) %>% 
+  # pull(estimates)
+  pull(contrasts)
+```
+
+
+### Export results
+
+wave_kinet_parameters
+
+
+# Ploting 
+
+## Make kinetics superplots
+
+```{r}
+wave_kinetics_df_nest %>% 
+  mutate(sup_plots = map(data, ~ multi_plot_list_func(my_dataset = .x,
+                                                      yaxe = wave_kinet_parameters,
+                                                      my_plot_fun = superplot_func,
+                                                      base_violin = "cells",
+                                                      dot_layer = "none",
+                                                      animal_layer = T,
+                                                      wave_alpha = 0.4,
+                                                      wave_size = 1,
+                                                      cell_size = 2.5,
+                                                      cell_alpha = 0.4,
+                                                      animal_size = 7,
+                                                      animal_alpha = 0.7,
+                                                      base_font_size = 36,
+                                                      line_size = 1.5)))
+         
+         
+wave_kinet_parameters %>% 
+  map(~sym(as.character(.x)))
+```
+```{r}
+wave_kinet_parameters %>% 
+  map(~sym(.x))
+```
+
+
+```{r}
+wave_kinetics_df_nest$data[[1]] %>% 
+  superplot_func(yaxe = wave_kinet_parameters,
+                 # my_plot_fun = superplot_func,
+                 base_violin = "cells",
+                 dot_layer = "none",
+                 animal_layer = T,
+                 wave_alpha = 0.4,
+                 wave_size = 1,
+                 cell_size = 2.5,
+                 cell_alpha = 0.4,
+                 animal_size = 7,
+                 animal_alpha = 0.7,
+                 base_font_size = 36,
+                 line_size = 1.5)
+```
+
+
+NOTE: fix issue with the superplot function and listed names.
 
 
 # outline 
 
 - 1. [x] Descriptive stats and export results 
 
-- 2. [] Hypothesis testing (make mix model) and export results 
+- 2. [ ] Hypothesis testing (make mix model) and export results 
 
                   <- You are here -> 
 
-- 3. [] Standard Plot and export figures 
+- 3. [ ] Standard Plot and export figures 
 
-- 4. [] Repre traces and export results 
+                  <- You are here -> 
 
-- 5. [] render all images in this document? 
+- 4. [ ] Repre traces and export results 
+
+
+
+- 5. [ ] render all images in this document? 
 
 
 
