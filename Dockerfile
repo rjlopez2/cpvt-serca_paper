@@ -14,6 +14,12 @@ RUN installGithub.r rjlopez2/AnlysisOfWaves@54f11e0
 RUN install2.r --error --skipinstalled \
   pacman here broom.mixed markdown kableExtra
 
+RUN install2.r --error --skipinstalled \
+  lmerTest
+
+  RUN install2.r --error --skipinstalled \
+    emmeans
+
 WORKDIR /home/rstudio
 
 #COPY /code/install_packages.R /home/rstudio/install_packages.R

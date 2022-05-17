@@ -226,7 +226,7 @@ df40_o %>%
 ```
 
 
-### checking the files for repository -> no done yet
+### checking the files for repository ->  done 
 
 
 ```{r}
@@ -234,6 +234,19 @@ df40_o %>%
   # names
   distinct(filename) %>% 
   arrange(desc(filename))
+```
+
+Finding the folder dates where the data is located and save it as an csv file.
+Note: locally for this set of the experiment you can save the entire folder withouth cherry-picking specific files/subfolders.
+
+```{r}
+
+df40_o %>% 
+  distinct(Date) %>% 
+  arrange(desc(.)) %>% 
+  mutate(Date = as.character(Date)) %>% 
+  mutate(Date = str_sub(Date, start = -8) %>% str_replace_all(pattern = "-", "")) #%>% 
+  # write_csv(file = "intact_cells_dates.csv")
 ```
 
 
@@ -533,7 +546,7 @@ model_results_nsdf <- model_raw_nsdf %>%
 
 
 
-```{r results='show', include=TRUE, collapse = TRUE, fig.width=16, fig.asp = 1.3, out.width='200%'}
+```{r results='show', include=TRUE, collapse = TRUE, fig.width=16, fig.asp = 0.8, out.width='200%'}
 wave_kinet_parameters %>% 
   map(~(model_results_nsdf %>% 
           ungroup() %>% 
@@ -545,17 +558,17 @@ wave_kinet_parameters %>%
 
 ### Make Contrast
 
-firat we design a matrix to make the mdesired comparisons
+first we design a matrix to make the mdesired comparisons
 
 ```{r}
-emmens_ns_df$em_means[[1]] %>% 
-  coef
+# emmens_ns_df$em_means[[1]] %>% 
+#   coef
 
 ```
 
 ```{r}
 contrast_matrix <- list("WT_Control vs CPVT_Control" = c(1, 0, 0, 0) - c(0, 1, 0, 0),
-                        "WT_ISO vs CPVT_IS0" = c(0, 0, 1, 0) - c(0, 0, 0, 1))
+                        "WT_ISO vs CPVT_ISO" = c(0, 0, 1, 0) - c(0, 0, 0, 1))
 contrast_matrix
 ```
 
@@ -580,10 +593,10 @@ emmens_ns_df <- model_raw_nsdf %>%
          #                                             ~ round(.x, digits =2))))))#,
          contrast = map(em_means, ~(.x %>%
                                         contrast(method = contrast_matrix, adjust = "BH") %>%
-                                        as_tibble %>%
-                                        drop_na %>%
+                                       broom::tidy() %>% 
                                         mutate(across(where(is.double),
-                                                      ~ round(.x, digits =2)))))) #%>%
+                                                      ~ round(.x, digits =2)))
+                                     ))) #%>%
   # pluck("contrast_2", 2)
   # pluck("em_means", 2)
 
@@ -591,34 +604,34 @@ emmens_ns_df
 
 ```
 
-```{r}
-emmens_ns_df %>% 
-  select(variables, model_name, contrast) %>% 
-  unnest(cols = contrast) %>% 
-  filter(!str_detect(model_name, "no"))
-```
 
 
-```{r}
-contrast(emmens_ns_df$em_means[[1]], contrast_matrix)
-
-emmens_ns_df$em_means[[1]][[2]] %>%
-# emmens_ns_df$model[[1]] %>% 
-  coef
-```
 
 
-```{r}
-emmens_ns_df #%>% 
-  filter(str_detect(variables, "FF0")) %>% 
-  # pull(estimates)
-  pull(contrasts)
-```
+
 
 
 ### Export results
 
-wave_kinet_parameters
+
+Here we export the test contrast from the wave latency parameters: `r wave_kinet_parameters` and can be found in the directory: `r output_results_dir$kinetics`
+
+> Change to `eval = TRUE` when you want to export the results.
+
+```{r eval = FALSE}
+emmens_ns_df %>% 
+  select(variables, model_name, contrast) %>% 
+  unnest(cols = contrast) %>% 
+  filter(!str_detect(model_name, "no")) %>% # selecting the model with interaction
+  # write_csv()
+  write_csv(paste(output_results_dir$kinetics, 
+                  paste(format(Sys.time(),
+                               '%Y%m%d'),
+                        "test_stats.csv",
+                        sep = "_"), sep = "/"))
+```
+
+
 
 
 # Ploting 
@@ -626,62 +639,45 @@ wave_kinet_parameters
 ## Make kinetics superplots
 
 ```{r}
-wave_kinetics_df_nest %>% 
-  mutate(sup_plots = map(data, ~ multi_plot_list_func(my_dataset = .x,
-                                                      yaxe = wave_kinet_parameters,
-                                                      my_plot_fun = superplot_func,
-                                                      base_violin = "cells",
-                                                      dot_layer = "none",
-                                                      animal_layer = T,
-                                                      wave_alpha = 0.4,
-                                                      wave_size = 1,
-                                                      cell_size = 2.5,
-                                                      cell_alpha = 0.4,
-                                                      animal_size = 7,
-                                                      animal_alpha = 0.7,
-                                                      base_font_size = 36,
-                                                      line_size = 1.5)))
-         
-         
-wave_kinet_parameters %>% 
-  map(~sym(as.character(.x)))
-```
-```{r}
-wave_kinet_parameters %>% 
-  map(~sym(.x))
-```
+wave_kinetics_df_nest <- wave_kinetics_df_nest %>%
+  mutate(superplots = map2(data, variables, ~ {.x %>% superplot_func(yaxe = "value", 
+                                                                     base_violin = "cells",
+                                                                     dot_layer = "cells",
+                                                                     animal_layer = T,
+                                                                     wave_alpha = 0.1,
+                                                                     wave_size = 1,
+                                                                     cell_size = 2,
+                                                                     cell_alpha = 0.2,
+                                                                     jitter_width_cell = 4,
+                                                                     animal_size = 5,
+                                                                     animal_alpha = 0.6,
+                                                                     line_size = 1,
+                                                                     # base_font_size = 20, #this is the original valu
+                                                                     base_font_size = 12,
+                                                                     trim = FALSE,
+                                                                     scaled_to = "width",
+                                                                     adjusted = 1.5) + 
+      ggplot2::ylab(.y)}))  # fix the label for y axis
+  
 
 
-```{r}
-wave_kinetics_df_nest$data[[1]] %>% 
-  superplot_func(yaxe = wave_kinet_parameters,
-                 # my_plot_fun = superplot_func,
-                 base_violin = "cells",
-                 dot_layer = "none",
-                 animal_layer = T,
-                 wave_alpha = 0.4,
-                 wave_size = 1,
-                 cell_size = 2.5,
-                 cell_alpha = 0.4,
-                 animal_size = 7,
-                 animal_alpha = 0.7,
-                 base_font_size = 36,
-                 line_size = 1.5)
 ```
 
+```{r, results='show', include=TRUE, collapse = TRUE, fig.width=12, fig.asp = 0.3, out.width='100%'}
 
-NOTE: fix issue with the superplot function and listed names.
+wave_kinetics_df_nest$superplots %>% 
+  plot_grid(plotlist = ., ncol = 3)
+```
+
 
 
 # outline 
 
 - 1. [x] Descriptive stats and export results 
 
-- 2. [ ] Hypothesis testing (make mix model) and export results 
+- 2. [x] Hypothesis testing (make mix model) and export results 
 
-                  <- You are here -> 
-
-- 3. [ ] Standard Plot and export figures 
+- 3. [x] Standard Plot and export figures 
 
                   <- You are here -> 
 
