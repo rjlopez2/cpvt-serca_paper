@@ -74,7 +74,7 @@ output_figs_dir$intact_cells
 
 table_output_font_size = 10
 
-output_figs_dir
+# output_figs_dir
 ```
 
 
@@ -237,7 +237,7 @@ df40_o %>%
 ```
 
 Finding the folder dates where the data is located and save it as an csv file.
-Note: locally for this set of the experiment you can save the entire folder withouth cherry-picking specific files/subfolders.
+Note: Luckily for this set of the experiment you can save the entire folder withouth cherry-picking specific files/subfolders. But for other datasets you may need to check.
 
 ```{r}
 
@@ -462,84 +462,14 @@ model_raw_nsdf <- wave_kinetics_df_nest %>%
 # model_raw_nsdf
   
 ```
->NOTE:this two functions should go to the package `extract_model_info` and `plot_residuals`
-
-```{r}
-extract_model_info <- function(ns_df){
-  my_parameter_name <- sym(names(ns_df)[1])
-  ns_df %>% 
-  # pivot_longer(cols = ends_with("model"), 
-  #              names_to = "model_name", 
-  #              values_to = "model") %>% 
-    mutate(across(model,
-                list(glance = ~ map(.x, ~ broom::glance(.x)),
-                     tidy =  ~ map(.x, ~ broom::tidy(.x)),
-                     augment =  ~ map(.x, ~ broom::augment(.x))),
-                     # augment =  ~ map(.x, ~ (broom::augment(.x) %>% 
-                     #                           mutate(.student.resid = .resid / .sigma * sqrt(1 - .hat))))), # compute inside the augment column the studentized residuals
-                .names = "{.fn}")) %>% 
-    mutate(logLik = (glance %>% map_dbl(~ .x$logLik * -2)),
-         AIC = (glance %>% map_dbl(~ .x$AIC)),
-         BIC = (glance %>% map_dbl(~ .x$BIC)),
-         # p_val = (glance %>% map_dbl(~ .x$p.value)),
-         # sigma = (glance %>% map_dbl(~ .x$sigma))) %>% 
-         p_val = map(model,  ~(.x %>%
-                                 car::Anova() %>%
-                                 broom::tidy())))
-}
-```
-
-
-
-```{r}
-plot_residuals <- function(model_nsdf, augmented_df = "augment"){
-  augmented_df <- sym(augmented_df)
-  my_parameter_name <- sym(names(model_nsdf)[1])
-  model_name <- sym(names(model_nsdf)[3])
-  
-
-  
-  model_nsdf %>%
-    group_by(model_name, .add = T) %>%
-    mutate(res_vs_fit_plot = map(!!augmented_df, ~ {
-      .x  %>%
-        # ungroup %>%
-        ggplot(aes(x = .fitted,
-                   y = .resid,
-                   color = Animal,
-                   shape = Condition)) +
-        geom_point() +
-        geom_hline(yintercept = 0,
-                   color = "black",
-                   linetype = "dashed",
-                   alpha = 0.5) +
-        facet_grid(. ~ Condition  + Animal ) +
-        ggplot2::scale_colour_manual(values = c("#666666",
-                                                "#CC0000")) +
-        ggplot2::scale_fill_manual(values = c("#666666",
-                                              "#CC0000")) +
-        # ggplot2::ggtitle(label = paste0("Parameter = ", !!my_parameter_name)) + # this work for parameter name
-        # ggplot2::ggtitle(label = paste("Model = ", !!model_name,  sep = "_")) +
-        ggplot2::ggtitle(label = paste(paste0("Parameter = ", !!my_parameter_name),
-                                        paste0("Model = ", !!model_name), sep  = "\n")) +
-        
-        # ggplot2::ggtitle(label = paste0("Model = ", !!model_name)) +
-        pptx_presentation_theme_func(base_size = 12) + 
-        theme(plot.title = element_text(size=12))
-
-    }))
-
-}
-```
-
-
+>NOTE:this two functions should go to the package `extract_model_info` and `plot_residuals` -> donde
 
 Extract information and Inspect model performance
 
 ```{r}
 model_results_nsdf <- model_raw_nsdf %>% 
-  extract_model_info() %>% 
-  plot_residuals()
+  extract_model_info_func() %>% 
+  plot_residuals_func()
 # model_results_nsdf
 ```
 
@@ -636,7 +566,9 @@ emmens_ns_df %>%
 
 # Ploting 
 
-## Make kinetics superplots
+## Superplots
+
+### Kinetics parameters
 
 ```{r}
 wave_kinetics_df_nest <- wave_kinetics_df_nest %>%
@@ -660,7 +592,7 @@ wave_kinetics_df_nest <- wave_kinetics_df_nest %>%
       ggplot2::ylab(.y)}))  # fix the label for y axis
   
 
-
+wave_kinetics_df_nest
 ```
 
 ```{r, results='show', include=TRUE, collapse = TRUE, fig.width=12, fig.asp = 0.3, out.width='100%'}
@@ -670,6 +602,37 @@ wave_kinetics_df_nest$superplots %>%
 ```
 
 
+### Frequency parameters
+
+```{r}
+wave_freq_df_nest <- wave_freq_df_nest%>% 
+   mutate(superplots = map2(data, variables, ~ {.x %>% superplot_func(yaxe = "value", 
+                                                                     base_violin = "cells",
+                                                                     dot_layer = "cells",
+                                                                     animal_layer = T,
+                                                                     wave_alpha = 0.1,
+                                                                     wave_size = 1,
+                                                                     cell_size = 2,
+                                                                     cell_alpha = 0.2,
+                                                                     jitter_width_cell = 4,
+                                                                     animal_size = 5,
+                                                                     animal_alpha = 0.6,
+                                                                     line_size = 1,
+                                                                     # base_font_size = 20, #this is the original valu
+                                                                     base_font_size = 12,
+                                                                     trim = FALSE,
+                                                                     scaled_to = "width",
+                                                                     adjusted = 1.5) + 
+      ggplot2::ylab(.y)}))  # fix the label for y axis
+
+wave_freq_df_nest
+```
+```{r, results='show', include=TRUE, collapse = TRUE, fig.width=12, fig.asp = 0.3, out.width='100%'}
+wave_freq_df_nest$superplots %>% 
+  plot_grid(plotlist = ., ncol = 3)
+```
+
+NOTE: make occurence and cumulatie occurence plot
 
 # outline 
 
