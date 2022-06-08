@@ -1,0 +1,322 @@
+---
+title: "Automatic report"
+author: "Ruben Lopez"
+date: "Generated on: `r format(Sys.time(), '%d.%m.%Y')`"
+output:
+  html_document: default
+  word_document: default
+editor_options:
+  chunk_output_type: inline
+---
+
+# Analysis of Ca^2+^ waves in permeabilized cells
+
+
+```{r, setup, echo=FALSE}
+## Setting enviroment
+knitr::opts_chunk$set(
+  comment = '', fig.width= 6, fig.asp = 0.8, warning=FALSE, message=FALSE, results='hide', include=FALSE, echo=FALSE)
+```
+
+
+
+------------------------------------------------------------------------
+
+```{r}
+
+############# Importing libraries #############
+
+pacman::p_load(AnlysisOfWaves, # custom functions for analysis and loading of additional libraries
+               here, fs, # folder's system navigation,
+               readxl,
+               readr,
+               cowplot,
+               purrr, dplyr, tidyr, stringr, kableExtra, # wrangling data
+               ggplot2, ungeviz, # piloting
+               lmerTest, broom.mixed, emmeans) # tools for mixed effect model computation and multiple comparison
+
+options("scipen" = 999, "digits" = 4)
+
+```
+
+
+```{r}
+
+############# Create folder and names structure #############
+
+# name of parameters for analysis
+parameters <- list("kinetics", "frequency") %>% 
+                                purrr::set_names()
+parameters
+
+# name of output directories for each parameter
+output_results_dir <- map(parameters, ~(sprintf(here("results",
+                               "perme_cells",
+                               "wave_%s"), .x)))
+
+# name of figure directories for each parameter
+output_figs_dir <- map(parameters, ~(sprintf(here("figures",
+                                                  "perme_cells",
+                                                  "wave_%s"), .x))) 
+
+
+table_output_font_size = 10
+
+
+
+# output_figs_dir
+```
+
+
+
+
+
+# Read and format the raw perme cells data
+
+```{r}
+
+raw_data_df <- read_csv(here("datasets",
+                             "perme_cells",
+                             "cyto_signal_only",
+                             "raw_data_perme_cells.csv"), col_types = cols(Date = col_character())) %>% 
+  select(Date, Animal_No, Animal, Experiment, Linescan, Wave_No,
+         Treatment, Condition, Inc_time_min,  # select only relevant variables for analysis
+         starts_with("Cyto"), Freq_waves_Hz, -Cyto_Notes, -Cyto_T50, For_Analysis) %>% 
+  mutate(Inc_time_min = as.integer(Inc_time_min),
+         Animal_No = as.factor(Animal_No))  %>% # Set to no-double this column to avoid  problems later with computation on it.
+  filter(!Inc_time_min %in% c(3)) # exclude data of 3' drug incubation time.
+
+raw_data_df$Animal[raw_data_df$Animal == "CPVT-WT"] <- "WT"
+raw_data_df$Animal[raw_data_df$Animal == "CPVT-HET"] <- "CPVT"
+
+raw_data_df$Animal <- factor(raw_data_df$Animal, levels = c("WT", "CPVT"))
+raw_data_df$Condition <- factor(raw_data_df$Condition, levels = c("Control", "cAMP", "Fab", "Vehicle"))
+raw_data_df$Treatment <- factor(raw_data_df$Treatment, levels = c("Fab", "cAMP", "Vehicle"))
+
+raw_data_df <-  raw_data_df %>% rename(Cyto_WaveSpeed = Cyto_Wave_Speed)
+
+raw_data_df
+
+
+```
+
+# Filter experiments out that didn't go well.
+
+
+```{r}
+cleaned_df <- raw_data_df %>%
+  filter_SR_experiment_func(my_date = "2020-01-29", # outlier= DFF0 & Tau too large
+                        my_Experiment = "P2 CS2",
+                        set_True = F) %>%
+
+  filter_SR_experiment_func(my_date = "2020-01-30",  # outlier -> tau too large in control (last exp of day)
+                        my_Experiment = "P4 CS4",
+                        set_True = F) %>%
+
+  filter_SR_experiment_func(my_date = "2020-03-03",  # tau no changed on fab treatment
+                        my_Experiment = c("P2 CS3"),
+                        set_True = F) %>%
+
+  filter_SR_experiment_func(my_date = "2020-03-03", # outlier -> tau too large in control
+                        my_Experiment = c("P1 CS2"),
+                        set_True = F) %>%
+
+  filter_SR_experiment_func(my_date = "2020-01-30", # outlier -> tau too large in control
+                        my_Experiment = c("P3 CS2"),
+                        set_True = F) %>%
+
+  filter_SR_experiment_func(my_date = "2020-01-28",  # outlier -> tau too large in control
+                        my_Experiment = "P4 CS3",
+                        set_True = F) %>%
+
+  filter_SR_experiment_func(my_date = "2020-01-24",  # outlier -> ∆FF0 too low in control
+                        my_Experiment = "P6 CS4",
+                        set_True = F) %>%
+  filter_SR_experiment_func(my_date = "2020-01-29",  # outlier -> Fab to strong or something wrong with this prep
+                        my_Experiment = "P3 CS2",
+                        set_True = F) %>%
+  filter_SR_experiment_func(my_date = "2020-01-29",  # outlier -> Fab to strong or something wrong with this prep
+                        my_Experiment = "P4 CS3",
+                        set_True = F) %>%
+  filter_SR_experiment_func(my_date = "2020-01-29",  # outlier -> Fab to strong or something wrong with this prep
+                        my_Experiment = "P5 CS1",
+                        set_True = F) %>%
+  filter_SR_experiment_func(my_date = "2020-01-30",  # outlier -> Fab to strong or something wrong with this prep
+                        my_Experiment = "P2 CS1",
+                        set_True = F) %>%
+  filter_SR_experiment_func(my_date = "2020-01-30",  # outlier -> Fab to strong or something wrong with this prep
+                        my_Experiment = "P1 CS2",
+                        set_True = F) %>%
+  filter_SR_experiment_func(my_date = "2020-01-30",  # outlier -> Fab to strong or something wrong with this prep
+                        my_Experiment = "P2 CS3",
+                        set_True = F) %>%
+  filter_SR_experiment_func(my_date = "2020-03-06",  # outlier -> Fab to strong or something wrong with this prep
+                            my_Experiment = "P3 CS3",
+                            set_True = F) %>%
+  filter_SR_experiment_func(my_date = "2020-01-29",  # outlier -> Amplitude of Control too high or something wrong with this prep
+                            my_Experiment = "P4 CS1",
+                            set_True = F) %>%
+  filter(For_Analysis == TRUE)  # take only experiments valid
+  
+  
+cleaned_df
+```
+# nest dataset
+
+```{r}
+
+nested_df <- clean_SR_data %>%
+  pivot_longer(cols = matches("Cyto|Freq"), names_to = "variables", values_to = "value") %>% 
+  group_by(variables) %>% 
+  nest() %>% 
+  ungroup() %>%
+  mutate(data = map2(data, variables, ~ mutate(.x, var_name = .y))) %>% 
+  group_by(variables) %>% 
+  mutate(data_procesed = map2(data, variables, 
+                              ~ .x %>% 
+                                summarize_sr_by_cell_func() %>%
+                                normalize_sr_data_func() %>% 
+                                mutate(var_name = .y)))
+
+nested_df$data_procesed[[1]]
+```
+# Ploting 
+
+## Superplots
+
+### Kinetics parameters
+
+```{r}
+nested_df %>% 
+  pluck("data_procesed", 1) 
+```
+
+
+```{r, results='show', include=TRUE, collapse = TRUE, fig.width=12, fig.asp = 0.3, out.width='200%'}
+
+nested_df %>% 
+  filter(!str_detect(variables, "log|Freq")) %>% # fix var set names to avoid doing this every time
+  mutate(superplots = map2(data_procesed,  variables, ~ {.x %>% 
+      filter(Var_type == "Normalized") %>% 
+      filter(Treatment != "Vehicle") %>% 
+      
+      # plot_arrange_by_condition_func(var ="value",
+      #                            my_conditions = c("Fab", "cAMP"),
+      #                            # my_conditions = c("Fab","cAMP"),
+      #                            type_of_plot = "superplot",
+      #                            faceted_by_1 = "Treatment + Condition",
+      #                            base_violin = "cells",
+      #                            dot_layer = "none",
+      #                            animal_layer = T,
+      #                            line_size = 1.5,
+      #                            # wave_alpha = 0.4,
+      #                            # wave_size = 2.5,
+      #                            cell_size = 2.5,
+      #                            cell_alpha = 0.4,
+      #                            animal_size = 7,
+      #                            animal_alpha = 0.7,
+      #                            y_limits = 13,
+      #                            base_font_size = 36) +
+      
+      superplot_func(yaxe = "value",
+                     faceted_by_1 = "Treatment + Condition",
+                     base_violin = "cells",
+                     dot_layer = "cells",
+                     animal_layer = T,
+                     wave_alpha = 0.1,
+                     wave_size = 1,
+                     cell_size = 2,
+                     cell_alpha = 0.2,
+                     jitter_width_cell = 4,
+                     animal_size = 5,
+                     animal_alpha = 0.6,
+                     line_size = 1,
+                     base_font_size = 20, #this is the original valu
+                     # base_font_size = 12,
+                     trim = FALSE,
+                     scaled_to = "width",
+                     adjusted = 1.5) +
+      ggplot2::ylab(.y) +
+      geom_hpline(stat = "summary", aes(color = Animal)) # add this line if you want to add average vertical line
+  })) %>% 
+  pluck("superplots") %>% 
+  plot_grid(plotlist = .,
+            ncol = 3)
+
+```
+
+### Frequency parameters
+
+```{r, results='show', include=TRUE, collapse = TRUE, fig.width=12, fig.asp = 0.3, out.width='200%'}
+
+nested_df %>% 
+  filter(!str_detect(variables, "log|Cyto")) %>% # fix var set names to avoid doing this every time
+  mutate(superplots = map2(data_procesed,  variables, ~ {.x %>% 
+      filter(Var_type == "Normalized") %>% 
+      filter(Treatment != "Vehicle") %>% 
+      filter(Condition != "Control") %>%
+      
+      # plot_arrange_by_condition_func(var ="value", 
+      #                                my_conditions = c("Fab", "cAMP"),
+      #                                # my_conditions = c("Fab","cAMP"),
+      #                                type_of_plot = "superplot",
+      #                                faceted_by_1 = "Treatment + Condition",
+      #                                base_violin = "cells",
+      #                                # dot_layer = "none",
+      #                                animal_layer = T,
+      #                                line_size = 1.5,
+      #                                # wave_alpha = 0.4,
+      #                                # wave_size = 2.5,
+      #                                cell_size = 2.5,
+      #                                cell_alpha = 0.4,
+      #                                animal_size = 7,
+      #                                animal_alpha = 0.7,
+      #                                y_limits = 13,
+      #                                base_font_size = 36) +
+      
+      superplot_func(yaxe = "value",
+                     faceted_by_1 = "Treatment + Condition",
+                     base_violin = "cells",
+                     dot_layer = "cells",
+                     animal_layer = T,
+                     wave_alpha = 0.1,
+                     wave_size = 1,
+                     cell_size = 2,
+                     cell_alpha = 0.2,
+                     jitter_width_cell = 4,
+                     animal_size = 5,
+                     animal_alpha = 0.6,
+                     line_size = 1,
+                     base_font_size = 20, #this is the original valu
+                     # base_font_size = 12,
+                     trim = FALSE,
+                     scaled_to = "width",
+                     adjusted = 1.5) +
+      ggplot2::ylab(.y) +
+      geom_hpline(stat = "summary", aes(color = Animal)) # add this line if you want to add average vertical line
+  })) %>% 
+  pull(superplots) %>% 
+  # plot_grid(plotlist = .,
+  #           ncol = 2) %>% 
+    ########## Save your plot ########## 
+walk2(c("normalized_wave_freq_all"),
+      ~ ggsave(plot = .x, filename = paste(output_figs_dir$frequency,
+                                           paste(format(Sys.Date(),
+                                                        "%y%m%d"),
+                                                 paste0(.y,
+                                                        ".pdf"),
+                                                 sep = "_"),
+                                           sep = "/"),
+               device = "pdf",
+               units = "cm",
+               width = 24,
+               height = 14))
+
+
+
+
+
+```
+
+
+
