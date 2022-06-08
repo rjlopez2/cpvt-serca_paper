@@ -12,7 +12,7 @@ else
 endif
 
 ifeq ($(DOCKER),TRUE)
-	run_interactive:=docker run  --rm -it -e PASSWORD=careloco -p 8787:8787 $(uid) -v $(home_dir):/home/rstudio $(projekt)
+	run_interactive:=docker run  --rm -it -e ROOT=TRUE -e DISABLE_AUTH=true -p 8787:8787 $(uid) -v $(home_dir):/home/rstudio $(projekt)
 	run:=docker run -e --rm $(uid) -v $(home_dir):/home/rstudio $(projekt)
 	current_dir=/home/rstudio
 endif
