@@ -515,6 +515,7 @@ first we design a matrix to make the mdesired comparisons
 contrast_matrix <- list("WT_Control vs CPVT_Control" = c(1, 0, 0, 0) - c(0, 1, 0, 0),
                         "WT_ISO vs CPVT_ISO" = c(0, 0, 1, 0) - c(0, 0, 0, 1))
 contrast_matrix
+
 ```
 
 
