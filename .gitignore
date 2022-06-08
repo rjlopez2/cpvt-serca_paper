@@ -27,3 +27,4 @@ data/data.csv
 .bash_history
 .wget-hsts
 .config/
+.gitconfig
