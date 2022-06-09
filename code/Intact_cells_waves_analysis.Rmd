@@ -13,6 +13,17 @@ editor_options:
 
 
 
+### This document contain the following: 
+
+- 1. [x] Descriptive statistics on wave parameters in intact cell 
+
+- 2. [x] Hypothesis testing using linear regression with mixed effect model
+
+- 3. [x] Superplots figures 
+
+
+
+
 ```{r, setup, echo=FALSE}
 ## Setting enviroment
 knitr::opts_chunk$set(
@@ -49,28 +60,23 @@ options("scipen" = 999, "digits" = 4)
 # name of parameters for analysis
 parameters <- list("kinetics", "frequency", "occurence") %>% 
                                 purrr::set_names()
-parameters
 
 # name of output directories for each parameter
-output_results_dir <- map(parameters, ~(sprintf(here("results",
+output_results_dir <- map(parameters[1:2], ~(sprintf(here("results",
                                "intact_cells",
                                "wave_%s"), .x)))
-output_results_dir
-# output_result
 
 
 # name of output directories for figures
-# output_figs_dir <- bind_cols(list(laten_and_freq = "Figures/Intact_cells/Waves_late_freq_occu" , 
-#                              wave_kinet = "Figures/Intact_cells/Waves_kinetics", 
-#                              combi_panel = "Figures/Intact_cells/Combined_pannel"))
 
-output_figs_dir <-here("figures", "intact_cells") %>% 
-  list() %>% 
-  set_names(nm = "intact_cells")
-    # dir.exists()
+output_figs_dir <- list("kinetics", "latency_and_occu") %>% 
+  purrr::set_names() %>% 
+  map(~(sprintf(here("figures",
+                     "intact_cells",
+                     "wave_%s"), .x)))
+
     
-    
-output_figs_dir$intact_cells
+# output_figs_dir$intact_cells
 
 table_output_font_size = 10
 
@@ -86,6 +92,15 @@ plot_names <- list(wave_occurence = c("Cumulative occurence (%)",
                                      "Velocity (µm/s)")) %>% 
   map(~set_names(.x))
 
+
+# Create all new directories for output results and figures
+
+c(output_results_dir, output_figs_dir) %>% 
+  map(~dir_create(path = .x))
+
+# change this variable to FALSE if no output results desired
+
+output_results = TRUE
 
 ```
 
@@ -343,9 +358,8 @@ wave_kinetics_df_nest %>%
 
 Here we export the descriptive statistics from the wave kinetics parameters: `r as.character(wave_kinet_parameters)` and can be found in the directory: `r output_results_dir$kinetics`
 
-> Change to `eval = TRUE` when you want to export the results.
 
-```{r eval = FALSE}
+```{r eval = output_results}
 wave_kinetics_df_nest %>% 
   unnest(described) %>% 
   arrange(variables, Condition) %>% 
@@ -414,9 +428,8 @@ wave_freq_df_nest %>%
 
 Here we export the descriptive statistics from the wave Frequency parameters: `r wave_lat_and_freq` and can be found in the directory: `r output_results_dir$frequency`
 
-> Change to `eval = TRUE` when you want to export the results.
 
-```{r eval = FALSE}
+```{r eval = output_results}
 wave_freq_df_nest %>% 
   unnest(described) %>% 
   arrange(variables, Condition) %>% 
@@ -591,9 +604,8 @@ Note that this results are slightly different form those reported in the paper s
 
 Here we export the test contrast from the wave latency parameters: `r wave_kinet_parameters` and can be found in the directory: `r output_results_dir$kinetics`
 
-> Change to `eval = TRUE` when you want to export the results.
 
-```{r eval = FALSE}
+```{r eval = output_results}
 wave_kinetics_contras_table %>% 
   write_csv(paste(output_results_dir$kinetics, 
                   paste(format(Sys.time(),
@@ -650,23 +662,25 @@ wave_kinetics_df_nest <- wave_kinetics_df_nest %>%
 wave_kinetics_df_nest$superplots %>% 
   plot_grid(plotlist = .,
             ncol = 3, labels = "AUTO")
-    ########## Save your plot ########## 
-    # walk2(wave_kinet_parameters,
-    #       wave_kinetics_df_nest$superplots,
-    #       ~ ggsave(plot = .y, filename = paste(here(),
-    #                                            "figures",
-    #                                            "intact_cells",
-    #                                            "kinetics", paste(format(Sys.Date(),
-    #                                                                     "%y%m%d"),
-    #                                                              paste0(.x,".pdf"),
-    #                                                              sep = "_"),
-    #                                            sep = "/"),
-    #                device = "pdf",
-    #                units = "cm",
-    #                width = 12,
-    #                height = 11))
+
 ```
 
+```{r eval = output_results}
+######### Save your plot ##########
+walk2(wave_kinet_parameters,
+      wave_kinetics_df_nest$superplots,
+      ~ ggsave(plot = .y, filename = paste(output_figs_dir$kinetics,
+                                           paste(format(Sys.Date(),
+                                                        "%y%m%d"),
+                                                 paste0(.x,".pdf"),
+                                                 sep = "_"),
+                                           sep = "/"),
+               device = "pdf",
+               units = "cm",
+               width = 12,
+               height = 11))
+
+```
 
 
 
@@ -735,28 +749,49 @@ wave_freq_df_nest %>%
             labels = "AUTO")
 ```
 
+```{r eval = output_results}
+######### Save your plot ##########
+
+wave_freq_df_nest %>% 
+  pivot_longer(cols = contains("plot"), names_to = "plot_type", values_to = "plot_object") %>% 
+  filter(!str_detect(plot_type, "qq")) %>% 
+  arrange(plot_type) %>% 
+  slice(1, 3, 5:6) %>%
+  pull(plot_object) %>% 
+  map2(plot_names$wave_occurence, ~ .x + ggplot2::ylab(label = .y)) %>% 
+  # plot_grid(plotlist = .,
+  #           ncol = 3, 
+  #           labels = "AUTO") #%>% 
+  walk2(.x = ., .y =str_replace(str_trim(str_replace(plot_names$wave_occurence, # remove special characters for creating valid dir names
+                                                     pattern = "\\(.*?\\)", 
+                                                     replacement = ""), 
+                                         side = "right"),
+                                " ", "_") , 
+        ~ ggsave(plot = .x, filename = paste(output_figs_dir$latency_and_occu,
+                                             paste(format(Sys.Date(),
+                                                          "%y%m%d"),
+                                                   paste0(.y,".pdf"),
+                                                   sep = "_"),
+                                             sep = "/"),
+                 device = "pdf",
+                 units = "cm",
+                 width = 12,
+                 height = 11))
 
 
 
 
 
+  # str_trim(side = "right") %>% 
 
-# outline 
+```
 
-- 1. [x] Descriptive stats and export results 
+\
 
-- 2. [x] Hypothesis testing (make mix model) and export results 
+<center>FIN</center>
 
-- 3. [x] Standard Plot and export figures 
-
-                  <- You are here -> 
-
-- 4. [ ] Repre traces and export results 
-
-
-
-- 5. [ ] render all images in this document? 
-
-
+\
+\
+\
 
 
