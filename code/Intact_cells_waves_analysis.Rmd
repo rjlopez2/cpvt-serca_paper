@@ -440,7 +440,9 @@ wave_freq_df_nest %>%
 
 ### Testing for the wave kinetics parameters
 
-Let's first define the model that describe our hypothesis which describe our kinetics parameters by the fix effects:  Genotype (WT/CPVT) or Drug condition (Control/ISO?others..) and random effect is the Animal ID.
+We use mix model to describe significance in the multiples waves parameters analyzed.
+
+Let's first define the model that describe our hypothesis which is defined by the fix effects:  Genotype (WT/CPVT) or Drug condition (Control/ISO?others..) and the random effect: Animal ID.
 
 ```{r}
 nointer_mixmodel <- function(my_dataset){
@@ -450,7 +452,7 @@ nointer_mixmodel <- function(my_dataset){
 }
 ```
 
-We can test for a second model whit similar describers but using interaction
+We can test for a second model whit similar describers but using interaction, which in our case is the appropriate one since we expect that the genotype (WT/CPVT) is responding differently (interact) when we apply the treatment. 
 
 ```{r}
 inter_mixmodel <- function(my_dataset){
@@ -473,9 +475,8 @@ model_raw_nsdf <- wave_kinetics_df_nest %>%
 
 # model_raw_nsdf
 ```
->NOTE:this two functions should go to the package `extract_model_info` and `plot_residuals` -> Done
 
-Extract information and Inspect model performance
+We extract information and inspect side-by-side model performance, at the left side is the model without interaction and right is the one with interaction.
 
 ```{r}
 model_results_nsdf <- model_raw_nsdf %>% 
@@ -487,7 +488,6 @@ model_results_nsdf <- model_raw_nsdf %>%
 
 
 
-
 ```{r results='show', include=TRUE, collapse = TRUE, fig.width=16, fig.asp = 0.8, out.width='200%'}
 wave_kinet_parameters %>% 
   map(~(model_results_nsdf %>% 
@@ -496,20 +496,17 @@ wave_kinet_parameters %>%
           pull(res_vs_fit_plot) %>% 
           plot_grid(plotlist = ., ncol = 2))) %>% 
   plot_grid(plotlist = ., ncol = 1)
-wave_kinet_parameters
 
-model_results_nsdf
 ```
+
+The residuals looks ok, so we stick with the mix model  with interaction and start making the comparisons of the different treatments, aka we make the contrasts as describe in the following step.
 
 ### Make Contrast
 
-first we design a matrix to make the mdesired comparisons
+#### Wave kinetics
 
-```{r}
-# emmens_ns_df$em_means[[1]] %>% 
-#   coef
+First we design a matrix to make the desired comparisons. Here we want to compare genotypes differences among control and ISO treatment, so we design the matrix accordingly
 
-```
 
 ```{r}
 contrast_matrix <- list("WT_Control vs CPVT_Control" = c(1, 0, 0, 0) - c(0, 1, 0, 0),
@@ -542,13 +539,39 @@ emmens_ns_df <- model_raw_nsdf %>%
                                        broom::tidy() %>% 
                                         mutate(across(where(is.double),
                                                       ~ round(.x, digits =2)))
-                                     ))) #%>%
-  # pluck("contrast_2", 2)
-  # pluck("em_means", 2)
-
-emmens_ns_df
+                                     ))) 
 
 ```
+
+Let's have a look at our contrast table.
+
+```{r results='show', include=TRUE}
+
+wave_kinetics_contras_table <- emmens_ns_df %>% 
+  filter(!str_detect(model_name, "nointer")) %>% #take only the model with interaction
+  select(contrast, model_name) %>% 
+  unnest() %>% 
+  mutate(significance = case_when(adj.p.value < 0.0001 ~ "****",
+                                  adj.p.value < 0.001 ~ "***",
+                                  adj.p.value < 0.01 ~ "**",
+                                  adj.p.value < 0.05 ~ "*",
+                                  adj.p.value > 0.05 ~ "ns",
+                                  TRUE ~ as.character(adj.p.value)), .before = model_name) %>% 
+  mutate(group1 = word(contrast, 1),
+         group2 = word(contrast, 3)) %>% 
+  pivot_longer(cols = starts_with("group"), names_to = "groups", values_to = "Condition") %>% 
+  mutate(Animal = str_extract(Condition, pattern = "WT|CPVT"),
+         Condition = str_extract(Condition, pattern = "Control|ISO")) %>% 
+  pivot_wider(values_from = Animal, names_from = groups) %>% 
+  relocate(Condition, starts_with("group"), .after = variables) %>% 
+  select(-contrast) 
+
+wave_kinetics_contras_table %>% 
+  kable %>%
+  kable_styling(font_size = table_output_font_size)
+
+```
+Note that this results are slightly different form those reported in the paper since there we use standard t-test to asses significance. However the conclusion is the same. Only the waves amplitude in control condition are significantly higher in the CPVT cardiomyocytes.
 
 
 ### Export results
@@ -559,11 +582,7 @@ Here we export the test contrast from the wave latency parameters: `r wave_kinet
 > Change to `eval = TRUE` when you want to export the results.
 
 ```{r eval = FALSE}
-emmens_ns_df %>% 
-  select(variables, model_name, contrast) %>% 
-  unnest(cols = contrast) %>% 
-  filter(!str_detect(model_name, "no")) %>% # selecting the model with interaction
-  # write_csv()
+wave_kinetics_contras_table %>% 
   write_csv(paste(output_results_dir$kinetics, 
                   paste(format(Sys.time(),
                                '%Y%m%d'),
