@@ -105,10 +105,6 @@ c(output_results_dir, output_figs_dir) %>%
 ```
 
 
-```{r, eval=output_results}
-```
-
-
 We load the excel file containing the features extracted form the linescan images. They also contain relevant additional information such as date, animal, treatments, etc.
 
 
@@ -354,7 +350,8 @@ wave_kinetics_df_nest %>%
   select(-data, -Parameters, -where(is.list)) %>% 
   # kableExtra::kable(format = "latex", booktabs = T)
   kable %>%
-  kable_styling(font_size = table_output_font_size)
+  kable_styling(font_size = table_output_font_size) %>% 
+  collapse_rows(columns = c(1:5))
 ```
 #### Export summry statistics results
 
@@ -422,7 +419,8 @@ wave_freq_df_nest %>%
   select(-data, -Parameters, -where(is.list)) %>% 
   # kableExtra::kable(format = "latex", booktabs = T)
   kable %>%
-  kable_styling(font_size = table_output_font_size)
+  kable_styling(font_size = table_output_font_size) %>% 
+  collapse_rows(columns = c(1:5))
 
 ```
 
