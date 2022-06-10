@@ -16,13 +16,15 @@ RUN install2.r --error --skipinstalled \
   here \
   broom.mixed \
   markdown \
-  kableExtra \
+  #kableExtra \ this seems to be very old one so from now using the development version in github
   #lmerTest \
   emmeans
 
 RUN installGithub.r  wilkelab/ungeviz@aeae12b
 
 RUN install2.r --error --skipinstalled lmerTest
+
+RUN installGithub.r   haozhu233/kableExtra@292f607
 
 
 
