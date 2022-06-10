@@ -28,6 +28,10 @@ editor_options:
 ## Setting enviroment
 knitr::opts_chunk$set(
   comment = '', fig.width= 6, fig.asp = 0.8, warning=FALSE, message=FALSE, results='hide', include=FALSE, echo=FALSE)
+
+# change this variable to FALSE if no output results desired
+
+output_results = FALSE
 ```
 
 
@@ -54,7 +58,6 @@ options("scipen" = 999, "digits" = 4)
 
 
 ```{r}
-
 ############# Create folder and names structure #############
 
 # name of parameters for analysis
@@ -91,17 +94,18 @@ plot_names <- list(wave_occurence = c("Cumulative occurence (%)",
                                      "Decay constant τ (ms)",
                                      "Velocity (µm/s)")) %>% 
   map(~set_names(.x))
+```
 
 
+```{r, eval=output_results}
 # Create all new directories for output results and figures
 
 c(output_results_dir, output_figs_dir) %>% 
   map(~dir_create(path = .x))
+```
 
-# change this variable to FALSE if no output results desired
 
-output_results = TRUE
-
+```{r, eval=output_results}
 ```
 
 
@@ -116,8 +120,6 @@ df40 <-as.data.frame(read_xlsx(here("datasets",
                                     "intact_cells",
                                     "pooled_IntactCells_WL_WS_EAP_OCC_CAFF.xlsx"),
                                sheet = 1, skip = 13))
- df40 %>% 
-   head
 ```
 
 
@@ -264,7 +266,7 @@ df40_o %>%
 ```
 
 Finding the folder dates where the data is located and save it as an csv file.
-Note: Luckily for this set of the experiment you can save the entire folder withouth cherry-picking specific files/subfolders. But for other datasets you may need to check.
+Note: Luckily for this set of the experiment you can save the entire folder without cherry-picking specific files/subfolders. But for other datasets you may need to check.
 
 ```{r}
 
