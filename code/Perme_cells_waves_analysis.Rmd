@@ -11,6 +11,14 @@ editor_options:
 
 # Analysis of Ca^2+^ waves in permeabilized cells
 
+### This document contain the following: 
+
+- 1. [x] Descriptive statistics on wave parameters in intact cell 
+
+- 2. [x] Hypothesis testing using linear regression with mixed effect model
+
+- 3. [x] Superplots figures 
+
 
 ```{r, setup, echo=FALSE}
 ## Setting enviroment
@@ -47,7 +55,7 @@ options("scipen" = 999, "digits" = 4)
 # name of parameters for analysis
 parameters <- list("kinetics", "frequency") %>% 
                                 purrr::set_names()
-parameters
+
 
 # name of output directories for each parameter
 output_results_dir <- map(parameters, ~(sprintf(here("results",
@@ -60,18 +68,27 @@ output_figs_dir <- map(parameters, ~(sprintf(here("figures",
                                                   "wave_%s"), .x))) 
 
 
+# Create all new directories for output results and figures
+c(output_results_dir, output_figs_dir) %>% 
+  map(~dir_create(path = .x))
+
+
+
+
+
 table_output_font_size = 10
 
+# change this variable to FALSE if no output results desired
 
+output_results = TRUE
 
-# output_figs_dir
 ```
 
 
 
 
 
-# Read and format the raw perme cells data
+# Read and format the dataset on Ca^2+^ waves from permeabilized cells
 
 ```{r}
 
@@ -95,9 +112,16 @@ raw_data_df$Treatment <- factor(raw_data_df$Treatment, levels = c("Fab", "cAMP",
 
 raw_data_df <-  raw_data_df %>% rename(Cyto_WaveSpeed = Cyto_Wave_Speed)
 
-raw_data_df
 
+# setting the variable names for analysis
 
+wave_parameters <- raw_data_df %>% 
+  names %>% 
+  str_subset("Cyto|Freq") %>% 
+  set_names() %>% 
+  sort()
+  map(~.x)
+  
 ```
 
 # Filter experiments out that didn't go well.
@@ -156,30 +180,86 @@ cleaned_df <- raw_data_df %>%
   filter_SR_experiment_func(my_date = "2020-01-29",  # outlier -> Amplitude of Control too high or something wrong with this prep
                             my_Experiment = "P4 CS1",
                             set_True = F) %>%
-  filter(For_Analysis == TRUE)  # take only experiments valid
+  filter(For_Analysis == TRUE)  # take only valid experiments
   
   
 cleaned_df
 ```
-# nest dataset
+### checking the files for repository ->  to be done
+
+# Statistics
+
+## Descriptive stats
+
+
+We compute descriptive statistics to observe the data quality, trend, etc...
+
 
 ```{r}
 
-nested_df <- clean_SR_data %>%
+nested_df <- cleaned_df %>%
+  filter(Treatment != "Vehicle") %>% 
+  # cleaned_df %>%
   pivot_longer(cols = matches("Cyto|Freq"), names_to = "variables", values_to = "value") %>% 
   group_by(variables) %>% 
+  arrange(variables) %>% 
   nest() %>% 
   ungroup() %>%
   mutate(data = map2(data, variables, ~ mutate(.x, var_name = .y))) %>% 
-  group_by(variables) %>% 
-  mutate(data_procesed = map2(data, variables, 
-                              ~ .x %>% 
-                                summarize_sr_by_cell_func() %>%
-                                normalize_sr_data_func() %>% 
-                                mutate(var_name = .y)))
+  rename(raw_data = data) %>% 
+  # pluck("raw_data", 3)
+  group_by(variables) %>%
+  mutate(by_cell_data = map2(raw_data, variables, ~ .x %>% 
+                               summarize_sr_by_cell_func() %>%  #)) %>%
+                               # pluck("summ_by_cell")
+                               clean_and_tidy_df_func(vars_for_analysis = "value") %>% 
+                               mutate(var_name = .y))) %>% 
+  describe_nested_df(targed_dataset = "by_cell_data")
+  
 
-nested_df$data_procesed[[1]]
+
+nested_df
 ```
+
+### Wave kinetics
+
+
+Here are the summary statistics of the wave kinetics parameters: `r as.character(wave_kinet_parameters)`
+
+```{r}
+nested_df %>% 
+  unnest(described) %>% 
+  select(-Parameters, -where(is.list))
+```
+
+#### Export summry statistics results
+
+Here we export the descriptive statistics from the wave kinetics parameters: `r as.character(wave_kinet_parameters)` and can be found in the directory: `r output_results_dir$kinetics`
+
+
+```{r}
+nested_df$outliers
+```
+
+#### QQ-plots of wave kinetics parameters
+
+
+```{r, results='show', include=TRUE, collapse = TRUE, fig.width=12, fig.asp = 0.5, out.width='100%'}
+nested_df %>% 
+  mutate(qq_plot = map(qq_plot, ~.x +  
+                         ggplot2::scale_colour_manual(values = c("#666666", 
+                                                                 "#CC0000")) +
+                         ggplot2::scale_fill_manual(values = c("#666666", 
+                                                                 "#CC0000")) +
+                         pptx_presentation_theme_func(base_size = 12))) %>% 
+  pluck("qq_plot") %>% 
+  plot_grid(plotlist = ., ncol = 2)
+```
+
+
+
+
+
 # Ploting 
 
 ## Superplots
