@@ -317,6 +317,59 @@ nested_df %>%
 ```
 
 
+## Hypotesis testing
+
+We use mix model to describe significance in the multiples waves parameters analyzed.
+
+Let's first define the model that describe our hypothesis which is defined by the fix effects:  Genotype (WT/CPVT) or Drug condition (Control/Fab/cAMP) and the random effect: Animal ID.
+
+
+```{r}
+# Model 1. mixed linear model with only Animal level (no interaction)
+
+nointer_mixmodel <- function(my_dataset){
+  lmerTest::lmer(value ~  Animal + (Treatment / Condition) + (1|Animal_No), 
+                 data = my_dataset,
+                 REML = FALSE)
+}
+
+# Model 5. mixed linear model with Animal level * with interaction
+
+inter_mixmodel <- function(my_dataset){
+  lmerTest::lmer(value ~ Animal * Treatment * Condition + (1|Animal_No), 
+                 data = my_dataset,
+                 REML = FALSE)
+}
+```
+
+
+We apply the model and check the output
+
+```{r}
+nested_df$by_cell_data
+```
+
+
+```{r}
+model_raw_nsdf <- nested_df %>% 
+# nested_df %>%
+  select(by_cell_data) %>%
+  apply_model_func(targed_dataset = "by_cell_data", my_model = nointer_mixmodel) %>%
+  apply_model_func(targed_dataset = "by_cell_data", my_model = inter_mixmodel) %>% 
+  pivot_longer(cols = ends_with("model"), 
+               names_to = "model_name", 
+               values_to = "model")
+  
+  model_raw_nsdf
+  
+  nested_df
+  
+  apply_model_func
+```
+
+
+
+
 
 
 
