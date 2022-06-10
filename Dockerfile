@@ -9,13 +9,23 @@ RUN MRAN=https://mran.revolutionanalytics.com/snapshot/${BUILD_DATE} \
   && export MRAN=$MRAN \
   && echo "options(repos = c(CRAN='$MRAN'), download.file.method = 'libcurl')" >> /usr/local/lib/R/etc/Rprofile.site
 
+RUN installGithub.r rjlopez2/AnlysisOfWaves@47057a3
 
 RUN install2.r --error --skipinstalled \
-  pacman here broom.mixed markdown kableExtra lmerTest emmeans
+  pacman \
+  here \
+  broom.mixed \
+  markdown \
+  kableExtra \
+  #lmerTest \
+  emmeans
 
-RUN installGithub.r rjlopez2/AnlysisOfWaves@5f034a9
+RUN installGithub.r  wilkelab/ungeviz@aeae12b
 
-RUN installGithub.r wilkelab/ungeviz@aeae12b
+RUN install2.r --error --skipinstalled lmerTest
+
+
+
 
 WORKDIR /home/rstudio
 
