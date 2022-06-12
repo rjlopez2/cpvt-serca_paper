@@ -359,17 +359,29 @@ model_raw_nsdf <- nested_df %>%
   pivot_longer(cols = ends_with("model"), 
                names_to = "model_name", 
                values_to = "model")
-  
-  model_raw_nsdf
-  
-  nested_df
-  
-  apply_model_func
+
 ```
 
 
 
+We extract information and inspect side-by-side model performance, at the left side is the model without interaction and right is the one with interaction.
 
+```{r}
+model_results_nsdf <- model_raw_nsdf %>% 
+  extract_model_info_func() %>% 
+  plot_residuals_func()
+```
+
+```{r results='show', include=TRUE, collapse = TRUE, fig.width=16, fig.asp = 0.8, out.width='200%'}
+wave_parameters %>% 
+  map(~(model_results_nsdf %>% 
+          ungroup() %>% 
+          filter(variables == .x ) %>% 
+          pull(res_vs_fit_plot) %>% 
+          plot_grid(plotlist = ., ncol = 2))) %>% 
+  plot_grid(plotlist = ., ncol = 1)
+
+```
 
 
 
