@@ -7,6 +7,8 @@ output:
   word_document: default
 editor_options:
   chunk_output_type: inline
+params:
+  OUTPUT: FALSE
 ---
 
 # Analysis of Ca^2+^ waves in permeabilized cells
@@ -47,7 +49,7 @@ options("scipen" = 999, "digits" = 4)
 
 # change this variable to FALSE if no output results desired
 
-output_results = FALSE
+params$OUTPUT
 ```
 
 
@@ -71,7 +73,7 @@ output_figs_dir <- map(parameters, ~(sprintf(here("figures",
 ```
 
 
-```{r, eval=output_results}
+```{r, eval=params$OUTPUT}
 
 # Create all new directories for output results and figures
 c(output_results_dir, output_figs_dir) %>% 
@@ -277,7 +279,7 @@ nested_df %>%
 
 Here we export the descriptive statistics from the wave kinetics parameters: `r as.character(wave_parameters)` and can be found in the following directories `r as.character(output_results_dir)` 
 
-```{r, eval=output_results}
+```{r, eval=params$OUTPUT}
 
 pwalk(list(data = nested_df$described,
            names = nested_df$variables,
@@ -402,8 +404,7 @@ wave_parameters %>%
 nested_df %>% 
   filter(!str_detect(variables, "log|Freq")) %>% # fix var set names to avoid doing this every time
   mutate(superplots = map2(by_cell_data,  variables, ~ {.x %>% 
-      # filter(Var_type == "Normalized") %>% 
-      # filter(Treatment != "Vehicle") %>% 
+      filter(Condition != "Control") %>%
       
       # plot_arrange_by_condition_func(var ="value",
       #                            my_conditions = c("Fab", "cAMP"),
@@ -424,7 +425,7 @@ nested_df %>%
       #                            base_font_size = 36) +
       
       superplot_func(yaxe = "value",
-                     faceted_by_1 = "Treatment + Condition",
+                     faceted_by_1 = "Treatment",
                      base_violin = "cells",
                      dot_layer = "cells",
                      animal_layer = T,
@@ -452,35 +453,33 @@ nested_df %>%
 
 ### Frequency parameters
 
-```{r, eval=output_results, results='show', include=TRUE, collapse = TRUE, fig.width=12, fig.asp = 0.3, out.width='200%'}
+```{r, eval=params$OUTPUT, results='show', include=TRUE, collapse = TRUE, fig.width=12, fig.asp = 0.3, out.width='200%'}
 
 nested_df %>% 
-  filter(!str_detect(variables, "log|Cyto")) %>% # fix var set names to avoid doing this every time
+  filter(!str_detect(variables, "log|Freq")) %>% # fix var set names to avoid doing this every time
   mutate(superplots = map2(by_cell_data,  variables, ~ {.x %>% 
-      filter(Var_type == "Normalized") %>% 
-      filter(Treatment != "Vehicle") %>% 
       filter(Condition != "Control") %>%
       
-      # plot_arrange_by_condition_func(var ="value", 
-      #                                my_conditions = c("Fab", "cAMP"),
-      #                                # my_conditions = c("Fab","cAMP"),
-      #                                type_of_plot = "superplot",
-      #                                faceted_by_1 = "Treatment + Condition",
-      #                                base_violin = "cells",
-      #                                # dot_layer = "none",
-      #                                animal_layer = T,
-      #                                line_size = 1.5,
-      #                                # wave_alpha = 0.4,
-      #                                # wave_size = 2.5,
-      #                                cell_size = 2.5,
-      #                                cell_alpha = 0.4,
-      #                                animal_size = 7,
-      #                                animal_alpha = 0.7,
-      #                                y_limits = 13,
-      #                                base_font_size = 36) +
+      # plot_arrange_by_condition_func(var ="value",
+      #                            my_conditions = c("Fab", "cAMP"),
+      #                            # my_conditions = c("Fab","cAMP"),
+      #                            type_of_plot = "superplot",
+      #                            faceted_by_1 = "Treatment + Condition",
+      #                            base_violin = "cells",
+      #                            dot_layer = "none",
+      #                            animal_layer = T,
+      #                            line_size = 1.5,
+      #                            # wave_alpha = 0.4,
+      #                            # wave_size = 2.5,
+      #                            cell_size = 2.5,
+      #                            cell_alpha = 0.4,
+      #                            animal_size = 7,
+      #                            animal_alpha = 0.7,
+      #                            y_limits = 13,
+      #                            base_font_size = 36) +
       
       superplot_func(yaxe = "value",
-                     faceted_by_1 = "Treatment + Condition",
+                     faceted_by_1 = "Treatment",
                      base_violin = "cells",
                      dot_layer = "cells",
                      animal_layer = T,
@@ -500,7 +499,7 @@ nested_df %>%
       ggplot2::ylab(.y) +
       geom_hpline(stat = "summary", aes(color = Animal)) # add this line if you want to add average vertical line
   })) %>% 
-  pull(superplots) %>% 
+  pluck("superplots") %>% 
   # plot_grid(plotlist = .,
   #           ncol = 2) %>% 
     ########## Save your plot ########## 
