@@ -287,12 +287,12 @@ pwalk(list(data = nested_df$described,
       function(data, names, dirs) {
         data %>% 
           mutate(Parameters = names) %>%
-          write_csv(paste(dirs, 
+          write_csv(here(dirs, 
                           paste(format(Sys.time(),
                                        '%Y%m%d'),
                                 names,
                                 "summary_stats.csv",
-                                sep = "_"), sep = "/"))})
+                                sep = "_")))})
 
 ```
 
@@ -503,13 +503,12 @@ nested_df %>%
   #           ncol = 2) %>% 
     ########## Save your plot ########## 
 walk2(c("normalized_wave_freq_all"),
-      ~ ggsave(plot = .x, filename = paste(output_figs_dir$frequency,
+      ~ ggsave(plot = .x, filename = here(output_figs_dir$frequency,
                                            paste(format(Sys.Date(),
                                                         "%y%m%d"),
                                                  paste0(.y,
                                                         ".pdf"),
-                                                 sep = "_"),
-                                           sep = "/"),
+                                                 sep = "_")),
                device = "pdf",
                units = "cm",
                width = 24,

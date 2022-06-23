@@ -361,11 +361,13 @@ wave_kinetics_df_nest %>%
   unnest(described) %>% 
   arrange(variables, Condition) %>% 
   select(-data, -Parameters, -where(is.list)) %>% 
-  write_csv(paste(output_results_dir$kinetics, 
+  write_csv(here(output_results_dir$kinetics, 
                   paste(format(Sys.time(),
                                '%Y%m%d'),
                         "summary_stats.csv",
-                        sep = "_"), sep = "/"))
+                        sep = "_")))
+
+
 ```
 
 
@@ -432,11 +434,11 @@ wave_freq_df_nest %>%
   unnest(described) %>% 
   arrange(variables, Condition) %>% 
   select(-data, -Parameters, -where(is.list)) %>% 
-  write_csv(paste(output_results_dir$frequency, 
+  write_csv(here(output_results_dir$frequency, 
                   paste(format(Sys.time(),
                                '%Y%m%d'),
                         "summary_stats.csv",
-                        sep = "_"), sep = "/"))
+                        sep = "_")))
 ```
 
 
@@ -605,11 +607,11 @@ Here we export the test contrast from the wave latency parameters: `r wave_kinet
 
 ```{r eval = params$output_results}
 wave_kinetics_contras_table %>% 
-  write_csv(paste(output_results_dir$kinetics, 
+  write_csv(here(output_results_dir$kinetics, 
                   paste(format(Sys.time(),
                                '%Y%m%d'),
                         "test_stats.csv",
-                        sep = "_"), sep = "/"))
+                        sep = "_")))
 ```
 
 
@@ -667,12 +669,11 @@ wave_kinetics_df_nest$superplots %>%
 ######### Save your plot ##########
 walk2(wave_kinet_parameters,
       wave_kinetics_df_nest$superplots,
-      ~ ggsave(plot = .y, filename = paste(output_figs_dir$kinetics,
+      ~ ggsave(plot = .y, filename = here(output_figs_dir$kinetics,
                                            paste(format(Sys.Date(),
                                                         "%y%m%d"),
                                                  paste0(.x,".pdf"),
-                                                 sep = "_"),
-                                           sep = "/"),
+                                                 sep = "_")),
                device = "pdf",
                units = "cm",
                width = 25,
@@ -765,12 +766,11 @@ wave_freq_df_nest %>%
                                                      replacement = ""), 
                                          side = "right"),
                                 " ", "_") , 
-        ~ ggsave(plot = .x, filename = paste(output_figs_dir$latency_and_occu,
+        ~ ggsave(plot = .x, filename = here(output_figs_dir$latency_and_occu,
                                              paste(format(Sys.Date(),
                                                           "%y%m%d"),
                                                    paste0(.y,".pdf"),
-                                                   sep = "_"),
-                                             sep = "/"),
+                                                   sep = "_")),
                  device = "pdf",
                  units = "cm",
                  width = 12,
