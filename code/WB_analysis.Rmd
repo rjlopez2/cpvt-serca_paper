@@ -4,9 +4,10 @@ author: "Ruben Lopez"
 date: "Generated on: `r format(Sys.time(), '%d.%m.%Y')`"
 output:
   html_document: default
-  word_document: default
 editor_options:
   chunk_output_type: inline
+params: 
+  output_results: FALSE
 ---
 
 # Quantification and Analysis of immunoblots of total RyR and RyR's phosphosites P2808, P2814 and P2030
@@ -28,9 +29,6 @@ editor_options:
 knitr::opts_chunk$set(
   comment = '', fig.width= 6, fig.asp = 0.8, warning=FALSE, message=FALSE, results='hide', include=FALSE, echo=FALSE)
 
-# change this variable to FALSE if no output results desired
-
-output_results = FALSE
 ```
 
 
@@ -93,17 +91,12 @@ output_figs_dir
 ```
 
 
-```{r, eval=output_results}
+```{r, eval=params$output_results}
 # Create all new directories for output results and figures
 
 c(output_results_dir, output_figs_dir) %>% 
   map(~dir_create(path = .x))
 
-map(phospho_prots, ~ here(output_figs_dir$Phospho_RyR, .x) %>% 
-      dir_create(.))
-
-map(phospho_prots, ~ here(output_results_dir$Phospho_RyR, .x) %>% 
-      dir_create(.))
 ```
 
 # Importing raw data and reformating
@@ -288,7 +281,7 @@ my_data_set_Norm_TotProt
 check individual experiment trending 
 
 
-```{r}
+```{r, results='show', include=TRUE, collapse = TRUE, fig.width=10, fig.asp = 0.5, out.width='100%'}
 my_data_set_Norm_TotProt %>% 
   select(!starts_with("P")) %>% 
   pivot_longer(cols =  RyR,
@@ -307,7 +300,7 @@ my_data_set_Norm_TotProt %>%
 # Plot total RyR
 
 
-```{r}
+```{r, results='show', include=TRUE, collapse = TRUE, fig.width=6, fig.asp = 0.8, out.width='100%'}
 my_data_set_Norm_TotProt %>% 
   select(!starts_with("P")) %>%
   pivot_longer(cols =  RyR,
@@ -361,7 +354,7 @@ my_data_set_Norm_TotProt %>%
 ```
 # Export plot of total RyR
 
-```{r eval = output_results}
+```{r eval = params$output_results}
   ########## Save your plot ##########
   ggsave(filename = here(output_figs_dir$Total_RyR, 
                           paste(format(Sys.Date(),
@@ -411,7 +404,7 @@ my_data_set_Norm_RyR <- my_data_set_Norm_TotProt %>%
 
 Exploring individual paired experiments 
 
-```{r, fig.width=4, fig.asp=0.5}
+```{r, results='show', include=TRUE, collapse = TRUE, fig.width=12, fig.asp = 0.3, out.width='100%'}
 
 my_data_set_Norm_RyR %>% 
   # filter(Animal_No != "6034") %>%
@@ -430,7 +423,7 @@ my_data_set_Norm_RyR %>%
 ```
 check weather phospho sites are different in control condition
 
-```{r}
+```{r, results='show', include=TRUE, collapse = TRUE, fig.width=10, fig.asp = 0.8, out.width='100%'}
 # my_data_set_Norm_RyR
 my_data_set_Norm_RyR %>% 
   # names
@@ -545,7 +538,7 @@ my_data_set_Norm_RyR %>%
 
 # Normalize pairwise to its own control
 
-```{r}
+```{r, results='show', include=TRUE, collapse = TRUE, fig.width=12, fig.asp = 0.3, out.width='100%'}
 my_data_set_Norm_RyR %>% 
   # filter(Condition == "Control") %>%
   pivot_wider(names_from = Condition, 
@@ -572,7 +565,7 @@ my_data_set_Norm_RyR %>%
 
 # Phospho protein plots
 
-```{r}
+```{r, results='show', include=TRUE, collapse = TRUE, fig.width=10, fig.asp = 0.8, out.width='100%'}
 
 my_data_set_Norm_RyR %>% 
   pivot_wider(names_from = Condition, 
@@ -630,9 +623,10 @@ stat_compare_means(paired = F, # this compute p.values
   pptx_presentation_theme_func(base_size = 18)
 
 ```
+
 # Export phospho plots
 
-```{r, eval = output_results}
+```{r, eval = params$output_results}
  
   ########## Save your plot ##########
   ggsave(filename = here(output_figs_dir$Phospho_RyR, 
@@ -650,3 +644,146 @@ stat_compare_means(paired = F, # this compute p.values
 # ggplotly()
 ```
 
+
+
+# Summary statistics
+
+## Total RyR
+
+### descriptive statistics
+
+```{r, eval = params$output_results}
+my_data_set_Norm_TotProt %>% 
+  select(!starts_with("P")) %>%
+  pivot_longer(cols =  RyR,
+               names_to = "Protein",
+               values_to = "Relative_value" ) %>%
+  # average the ISO + Control replicates
+  group_by(Date_of_Run, Animal, Date_of_Birth, Animal_No, Protein) %>% 
+  summarise(across(where(is.double), mean), .groups = "drop") %>% 
+  
+  my_summ_stat_func(my_grouping_vars = "Animal") %>% 
+  
+  #############  export results ##############
+write_csv(here(output_results_dir$Total_RyR, 
+                          paste(format(Sys.Date(),
+                                       "%y%m%d"),
+                                "TotRYR_summary_stats.csv",
+                                sep = "_")))
+
+```
+
+### statistical test
+
+Since this data (total RyR and Phospho-RyR) seem to behave under Gaussian distribution (check previous summary/descriptive statistics) we perform standard student t-test
+
+
+```{r, eval = params$output_results}
+my_data_set_Norm_TotProt %>% 
+  select(!starts_with("P")) %>%
+  pivot_longer(cols =  RyR,
+               names_to = "Protein",
+               values_to = "Relative_value" ) %>%
+  # average the ISO + Control replicates since RyR alone is the interest one
+  group_by(Date_of_Run, Animal, Date_of_Birth, Animal_No, Protein) %>% 
+  summarise(across(where(is.double), mean), .groups = "drop") %>% 
+  # average the ISO + Control replicates
+  # group_by(Date_of_Run, Animal, Date_of_Birth, Animal_No, Protein) %>% 
+  # head
+  ttest_by_group_multivar_func(my_var_set = "Relative_value", group_1 = "") %>% 
+  
+  
+    #############  export results ##############
+write_csv(here(output_results_dir$Total_RyR, 
+                          paste(format(Sys.Date(),
+                                       "%y%m%d"),
+                                "TotRYR_test_stats.csv",
+                                sep = "_")))
+  
+```
+
+
+
+
+## Phospho proteins
+
+### descriptive statistics
+
+
+```{r, eval = params$output_results}
+my_data_set_Norm_RyR %>% 
+  pivot_wider(names_from = Condition, 
+              values_from = Relative_value) %>%
+  # filter(Animal_No != 6034) %>%
+  mutate(ISO = ISO / Control,
+         Control = Control / Control) %>% 
+  pivot_longer(cols = c(Control, ISO), 
+               names_to = "Condition", 
+               values_to = "Relative_value") %>%
+  # head
+  mutate(Animal = fct_relevel(Animal, c("CPVT", "WT"))) %>%
+  filter(Condition == "ISO") %>%
+  group_by(Phospho_Protein, Animal, Condition) %>%
+  summarise(across(where(is.double), # aggregate by cells (averaging)
+                   list(n = ~ length(.x),
+                        mean = ~ mean(.x, na.rm = T),
+                        sd = ~ stats::sd(.x, na.rm = T),
+                        sem = ~ sem_func(.x, na.rm = T),
+                        median = ~ stats::median(.x, na.rm = T),
+                        Normality_Shapiro_p = ~ stats::shapiro.test(.x)$p.value),
+                    .names = "{.fn}"),
+            .groups = "drop_last") %>%
+  mutate(across(where(is.double), ~ round(.x, digits = 2))) %>%
+  arrange(Phospho_Protein, desc(Animal)) %>% 
+
+
+    #############  export results ##############
+write_csv(here(output_results_dir$Phospho_RyR, 
+                          paste(format(Sys.Date(),
+                                       "%y%m%d"),
+                                "Phospho_prot_summary_stats.csv",
+                                sep = "_")))
+
+
+```
+
+
+
+### statistical test
+
+```{r, eval = params$output_results}
+my_data_set_Norm_RyR %>% 
+  pivot_wider(names_from = Condition, 
+              values_from = Relative_value) %>%
+  # filter(Animal_No != 6034) %>%
+  mutate(ISO = ISO / Control,
+         Control = Control / Control) %>% 
+  pivot_longer(cols = c(Control, ISO), 
+               names_to = "Condition", 
+               values_to = "Relative_value") %>%
+  # mutate(Animal = fct_relevel(Animal, c("CPVT", "WT"))) %>% 
+  filter(Condition == "ISO") %>%
+  # filter(Phospho_Protein != "P2814") #%>%
+  
+  # this is not wrong, but use more robust test (t-test) since the data is normal
+  # wilcxntest_by_group_multivar_func(my_var_set = "Relative_value",
+  #                                   group_1 = c("Condition", "Phospho_Protein"),
+  #                                   group_2 = "Animal") %>% 
+  # mutate(across(where(is.double), ~ round(.x, digits = 2))) #%>%
+  
+  # ttest_by_group_multivar_func(my_var_set = "Relative_value", 
+  #                              group_1 = c("Phospho_Protein", "Condition")) # %>% 
+  ttest_by_group_multivar_func(my_var_set = "Relative_value", # referenced to 1 as control
+                               group_1 = c("Phospho_Protein", "Condition"), 
+                               pairwise = FALSE,
+                               round_to = 4) %>% 
+
+    #############  export results ##############
+write_csv(here(output_results_dir$Phospho_RyR, 
+                          paste(format(Sys.Date(),
+                                       "%y%m%d"),
+                                "Phospho_prot_test_stats.csv",
+                                sep = "_")))
+
+
+```
