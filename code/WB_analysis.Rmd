@@ -378,3 +378,275 @@ my_data_set_Norm_TotProt %>%
 
 ```
 
+
+# Check Phospho proteins
+
+# Normalize to total RyR 
+
+Normalization 2: Normalize the Phosphoprotein by the RyR
+divide every phospho Protein by its own RyR
+
+```{r}
+my_data_set_Norm_RyR <- my_data_set_Norm_TotProt %>% 
+  mutate(RyR = RyR / RyR,
+         P2808 = P2808 / RyR,
+         P2814 = P2814 / RyR,
+         P2030 = P2030 / RyR) %>% 
+  select(!starts_with("Tot"), -RyR) %>% 
+  pivot_longer(cols = starts_with("P"), 
+               names_to = "Phospho_Protein", 
+               values_to = "Relative_value")
+  # ungroup %>% 
+  # mutate_at(vars(RyR), list(~RyR /mean(RyR, na.rm = TRUE)))
+
+# ?transmute()
+
+# my_data_set_Norm_RyR
+```
+
+
+
+
+# ploting no normalized data to internal treatment "control"
+
+Exploring individual paired experiments 
+
+```{r, fig.width=4, fig.asp=0.5}
+
+my_data_set_Norm_RyR %>% 
+  # filter(Animal_No != "6034") %>%
+    ggplot(aes(x = Condition,
+             y = Relative_value)) + 
+  # geom_boxplot(aes(color = Animal)) +
+  geom_point(aes(color = Animal_No), ) +
+  facet_grid(. ~ Phospho_Protein + Animal) +
+  coord_cartesian(ylim = c(0, 0.7)) +
+  geom_line(aes(group = Animal_No)) + 
+  stat_compare_means(paired = F, 
+                     show.legend = F,
+                     label.y = 0.65)
+  # facet_grid(. ~ Phospho_Protein + Condition)
+# ggplotly()
+```
+check weather phospho sites are different in control condition
+
+```{r}
+# my_data_set_Norm_RyR
+my_data_set_Norm_RyR %>% 
+  # names
+  filter(Condition == "Control") %>%
+  filter(Animal_No != "6034") %>%
+  mutate(Animal = fct_relevel(Animal, c("CPVT", "WT"))) %>%
+  
+  ggplot(aes(x = Condition,
+             y = Relative_value,
+             fill = Animal,
+             group = Animal)) + 
+  
+  stat_summary(fun = "median",
+                geom = "bar",
+                width = .8,
+                alpha = 0.5,
+               color = "black",
+                # position = position_dodge2(preserve = "total"),
+                position = position_dodge2(preserve = "single"),
+                # position_dodge(width = 0.5),
+                show.legend = F) +
+  # geom_point(aes(color = Animal_No)) +
+  geom_point(shape = 21,
+             alpha = 0.5,
+             size = 4,
+             # color = "black",
+             aes(color = Animal_No),
+               position = position_jitterdodge(jitter.width = 0.5,
+                                               seed = 999,
+                                               dodge.width = 0.9),
+             show.legend = F) +
+  
+  ########## Define dot error line ########## 
+
+  geom_errorbar(stat = "summary", 
+                fun.data = "mean_sdl", 
+                fun.args = list(mult = 1),
+                position =  position_dodge(width = 0.9),
+                width = 0.3) +
+  
+  facet_grid(Phospho_Protein~ Condition) +
+  stat_compare_means(paired = F, # this compute p.values
+                      method = "wilcox.test",
+                      show.legend = F,
+                     label.y = 0.45,
+                     label.x = -0.01) +
+  coord_flip(ylim = c(0, 0.7)) +
+  # coord_flip() +
+  
+  ########## Add reference line ########## 
+
+  # geom_hline(yintercept = 0.1,
+  #            # color  = "grey",
+  #            linetype = "longdash") +
+   
+   
+   
+   #space = "free") +
+   # switch = "y",
+   # scales = "free_y") +
+  pptx_presentation_theme_func(20) +
+   # scale_fill_manual(values = c("#666666", "#CC0000"))
+   scale_fill_manual(values = c("#CC0000", "#666666"))
+      
+
+# ggplotly()
+
+```
+
+confirm these result by formal test
+
+1. test that they are normal. 
+  the condition : CPVT ISO P2030 does not follow Normal Distribution
+
+```{r}
+my_data_set_Norm_RyR %>% 
+  # head
+  # filter(Animal_No != "6034") %>%
+  group_by(across(any_of(c("Animal", 
+                           "Condition",
+                           "Phospho_Protein")))) %>% 
+  summarise(across(where(is.double),
+                     list(n = ~ length(.x),
+                          mean = ~ mean(.x, na.rm = T),
+                          sd = ~ stats::sd(.x, na.rm = T),
+                          sem = ~ sem_func(.x, na.rm = T),
+                          median = ~ stats::median(.x, na.rm = T),
+                          NormalityShapirop = ~ stats::shapiro.test(.x)$p.value),
+                     .names = "{.col}_{.fn}"), .groups = "drop") %>% 
+  arrange(Phospho_Protein, Condition)
+
+
+```
+
+2. make test (no parametric)
+
+```{r}
+
+my_data_set_Norm_RyR %>% 
+  filter(Animal_No != "6034") %>%
+  wilcxntest_by_group_multivar_func(my_var_set = "Relative_value", 
+                                    group_1 = c("Condition", 
+                                                "Phospho_Protein"), 
+                                    round_to = 3)
+
+```
+
+
+
+
+
+
+# Normalize pairwise to its own control
+
+```{r}
+my_data_set_Norm_RyR %>% 
+  # filter(Condition == "Control") %>%
+  pivot_wider(names_from = Condition, 
+              values_from = Relative_value) %>%
+  # distinct(ISO, .keep_all = T) %>%
+  # filter(Animal_No != 6034) %>%
+  mutate(ISO = ISO / Control,
+         Control = Control / Control) %>%
+  
+  pivot_longer(cols = c(Control, ISO), 
+               names_to = "Condition", 
+               values_to = "Relative_value") %>%
+  ggplot(aes(x = Condition,
+             y = Relative_value)) +
+  # geom_boxplot(aes(color = Animal)) +
+  geom_point(aes(color = Animal_No), ) +
+  facet_grid(. ~ Phospho_Protein + Animal) +
+  geom_line(aes(group = Animal_No)) +
+  stat_compare_means(paired = T, show.legend = F)
+  # facet_grid(. ~ Phospho_Protein + Condition)
+# ggplotly()
+
+```
+
+# Phospho protein plots
+
+```{r}
+
+my_data_set_Norm_RyR %>% 
+  pivot_wider(names_from = Condition, 
+              values_from = Relative_value) %>%
+  # filter(Animal_No != 6034) %>%
+  mutate(ISO = ISO / Control,
+         Control = Control / Control) %>% 
+  pivot_longer(cols = c(Control, ISO), 
+               names_to = "Condition", 
+               values_to = "Relative_value") %>%
+  mutate(Animal = fct_relevel(Animal, c("CPVT", "WT"))) %>% 
+  filter(Condition == "ISO") %>% 
+  # filter(Phospho_Protein != "P2814") %>% 
+  
+  ggplot(aes(x = Animal,
+             y = Relative_value,
+             color = Animal,
+             fill = Animal,
+             group = Animal)) +
+
+###### Add single data point ######
+    geom_point(shape = 21,
+              alpha = 0.25,
+              size = 4,
+              position = position_jitterdodge(jitter.width = 0.5,
+                                              seed = 999,
+                                              dodge.width = 0.9),
+              show.legend = F) +
+###### Add mean and 1sd ######
+stat_summary(fun.data = "mean_sdl",
+             fun.args = list(mult = 1),
+             size = 2,
+             alpha = 0.7,
+             show.legend = F) +
+#### Add p.value comparison ######
+stat_compare_means(paired = F, # this compute p.values
+                   show.legend = F,
+                   label.y = 2) +
+###### Add reference line ######
+    geom_hline(yintercept = 1, 
+             # color  = "grey",
+             linetype = "longdash") +
+
+  scale_fill_manual(values = c( "#CC0000", "#666666")) +
+  scale_color_manual(values = c( "#CC0000", "#666666")) +
+  facet_grid(Phospho_Protein~ Condition ) +
+  theme(panel.spacing.y = unit(3, "lines")) + # increase space between panels
+  theme(strip.text.y.right = element_text(angle = 0, size = 18, margin = margin(l = -0.5, unit = "cm"))) + # change angle and size of facet labels (phospho-prot labels)
+  xlab(label = NULL) + # Remove axis title
+  ylab(label = "Relative value") + # change y title 
+  theme(axis.title.x.bottom = element_text(margin = margin(t = 1.5, unit = "cm"))) + # change margin of y axis title
+  
+  coord_flip(ylim = c(0.1, 6)) +
+    
+  pptx_presentation_theme_func(base_size = 18)
+
+```
+# Export phospho plots
+
+```{r, eval = output_results}
+ 
+  ########## Save your plot ##########
+  ggsave(filename = here(output_figs_dir$Phospho_RyR, 
+                          paste(format(Sys.Date(),
+                                       "%y%m%d"),
+                                "Phospho_RyR_dots.pdf",
+                                sep = "_")),
+         device = "pdf",
+         units = "cm",
+         # width = 23, # use this dimension reference for the paper images.
+         # height = 17.6) # use this dimension reference for the paper images.
+         width = 24,
+         height = 22)
+
+# ggplotly()
+```
+
