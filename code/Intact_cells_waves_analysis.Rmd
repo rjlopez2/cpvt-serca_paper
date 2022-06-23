@@ -4,11 +4,10 @@ author: "Ruben Lopez"
 date: "Generated on: `r format(Sys.time(), '%d.%m.%Y')`"
 output:
   html_document: default
-  word_document: default
 editor_options:
   chunk_output_type: inline
-params:
-  OUTPUT: FALSE
+params: 
+  output_results: FALSE
 ---
 
 # Analysis of Ca^2+^ waves in intact cells
@@ -33,7 +32,6 @@ knitr::opts_chunk$set(
 
 ```
 
-Here's my parameter: `r params$output_results`.
 
 
 ------------------------------------------------------------------------
@@ -41,8 +39,6 @@ Here's my parameter: `r params$output_results`.
 ```{r}
 
 ############# Importing libraries #############
-
-# remotes::install_github("rjlopez2/AnlysisOfWaves@e3cc2a3") # custom functions for analysis and loading of additional libraries
 
 pacman::p_load(AnlysisOfWaves, # custom functions for analysis and loading of additional libraries
                here, fs, # folder's system navigation,
@@ -99,7 +95,7 @@ plot_names <- list(wave_occurence = c("Cumulative occurence (%)",
 ```
 
 
-```{r, eval=params$OUTPUT}
+```{r, eval=params$output_results}
 # Create all new directories for output results and figures
 
 c(output_results_dir, output_figs_dir) %>% 
@@ -360,7 +356,7 @@ wave_kinetics_df_nest %>%
 Here we export the descriptive statistics from the wave kinetics parameters: `r as.character(wave_kinet_parameters)` and can be found in the directory: `r output_results_dir$kinetics`
 
 
-```{r eval = params$OUTPUT}
+```{r eval = params$output_results}
 wave_kinetics_df_nest %>% 
   unnest(described) %>% 
   arrange(variables, Condition) %>% 
@@ -431,7 +427,7 @@ wave_freq_df_nest %>%
 Here we export the descriptive statistics from the wave Frequency parameters: `r wave_lat_and_freq` and can be found in the directory: `r output_results_dir$frequency`
 
 
-```{r eval = params$OUTPUT}
+```{r eval = params$output_results}
 wave_freq_df_nest %>% 
   unnest(described) %>% 
   arrange(variables, Condition) %>% 
@@ -607,7 +603,7 @@ Note that this results are slightly different form those reported in the paper s
 Here we export the test contrast from the wave latency parameters: `r wave_kinet_parameters` and can be found in the directory: `r output_results_dir$kinetics`
 
 
-```{r eval = params$OUTPUT}
+```{r eval = params$output_results}
 wave_kinetics_contras_table %>% 
   write_csv(paste(output_results_dir$kinetics, 
                   paste(format(Sys.time(),
@@ -667,7 +663,7 @@ wave_kinetics_df_nest$superplots %>%
 
 ```
 
-```{r eval = params$OUTPUT}
+```{r eval = params$output_results}
 ######### Save your plot ##########
 walk2(wave_kinet_parameters,
       wave_kinetics_df_nest$superplots,
@@ -679,7 +675,7 @@ walk2(wave_kinet_parameters,
                                            sep = "/"),
                device = "pdf",
                units = "cm",
-               width = 12,
+               width = 25,
                height = 11))
 
 ```
@@ -751,7 +747,7 @@ wave_freq_df_nest %>%
             labels = "AUTO")
 ```
 
-```{r eval = params$OUTPUT}
+```{r eval = params$output_results}
 ######### Save your plot ##########
 
 wave_freq_df_nest %>% 

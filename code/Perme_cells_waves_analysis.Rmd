@@ -541,13 +541,13 @@ cleaned_df %>%
 Finding the folder dates where the data is located and save it as an csv file.
 Note: Luckily for this set of the experiment you can save the entire folder without cherry-picking specific files/subfolders. But for other datasets you may need to check.
 
-```{r}
+```{r, eval=FALSE}
 
-cleaned_df %>% 
-  distinct(Date) %>% 
-  arrange(desc(.)) %>% 
-  mutate(Date = as.character(Date)) %>% 
-  mutate(Date = str_sub(Date, start = -8) %>% str_replace_all(pattern = "-", "")) %>% 
+cleaned_df %>%
+  distinct(Date) %>%
+  arrange(desc(.)) %>%
+  mutate(Date = as.character(Date)) %>%
+  mutate(Date = str_sub(Date, start = -8) %>% str_replace_all(pattern = "-", "")) %>%
   write_csv(file = "perme_cells_dates.csv")
 ```
 
