@@ -18,25 +18,25 @@ ifeq ($(DOCKER),TRUE)
 endif
 
 
-ifeq ($(OUTPUT),TRUE)
+HTML_FILES=Intact_cells_waves_analysis.html Perme_cells_waves_analysis.html WB_analysis.html
 
-all : $(HTML_FILES)
-	echo All files are now up to date
+
+ifeq ($(OUTPUT),TRUE)
 
 %.html : code/%.Rmd
 	$(run) Rscript -e 'rmarkdown::render(input = "$(current_dir)/$<", params = list(output_results = $(OUTPUT)))'
 
+else
+
+%.html : code/%.Rmd
+	$(run) Rscript -e 'rmarkdown::render(input = "$(current_dir)/$<")'
+
 endif
-
-
-
-HTML_FILES=Intact_cells_waves_analysis.html Perme_cells_waves_analysis.html
 
 all : $(HTML_FILES)
 	echo All files are now up to date
 
-%.html : code/%.Rmd
-	$(run) Rscript -e 'rmarkdown::render(input = "$(current_dir)/$<")'
+
 
 
 build: Dockerfile
@@ -61,8 +61,8 @@ test:
 echo:
 #  echo 'rmarkdown::render("$(current_dir)/code/Intact_cells_waves_analysis.Rmd")'
 #  echo  this is your dir ----> '"$(current_dir)/code/$<"'
-	echo this is your linescript current_dir ----> 'rmarkdown::render(input = "$(current_dir)/$<", params = list(OUTPUT = $(OUTPUT), docker = "$(DOCKER)"))' &&\
-	echo this is your linescript home_dir ----> 'rmarkdown::render(input = "$(home_dir)/$<", params = list(OUTPUT = $(OUTPUT), docker = "$(DOCKER)"))'
+	echo this is your linescript current_dir ----> $(run) Rscript -e 'rmarkdown::render(input = "$(current_dir)/$<", params = list(output_results = $(OUTPUT)))'
+# echo this is your linescript home_dir ----> 'rmarkdown::render(input = "$(home_dir)/$<", params = list(OUTPUT = $(OUTPUT), docker = "$(DOCKER)"))'
 #	 echo this is the project name --> $(projekt)
 #	 echo this is the home dir name --> $(home_dir)
 #	 echo 'rmarkdown::render("$(current_dir)/code/Intact_cells_waves_analysis.Rmd")'
