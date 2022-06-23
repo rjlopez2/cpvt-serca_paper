@@ -4,11 +4,10 @@ author: "Ruben Lopez"
 date: "Generated on: `r format(Sys.time(), '%d.%m.%Y')`"
 output:
   html_document: default
-  word_document: default
 editor_options:
   chunk_output_type: inline
 params:
-  OUTPUT: FALSE
+  output_results: FALSE
 ---
 
 # Analysis of Ca^2+^ waves in permeabilized cells
@@ -28,7 +27,7 @@ knitr::opts_chunk$set(
   comment = '', fig.width= 6, fig.asp = 0.8, warning=FALSE, message=FALSE, results='hide', include=FALSE, echo=FALSE)
 ```
 
-
+your parameter `r params$output_results`
 
 ------------------------------------------------------------------------
 
@@ -49,7 +48,7 @@ options("scipen" = 999, "digits" = 4)
 
 # change this variable to FALSE if no output results desired
 
-params$OUTPUT
+params$output_results
 ```
 
 
@@ -73,7 +72,7 @@ output_figs_dir <- map(parameters, ~(sprintf(here("figures",
 ```
 
 
-```{r, eval=params$OUTPUT}
+```{r, eval=params$output_results}
 
 # Create all new directories for output results and figures
 c(output_results_dir, output_figs_dir) %>% 
@@ -279,7 +278,7 @@ nested_df %>%
 
 Here we export the descriptive statistics from the wave kinetics parameters: `r as.character(wave_parameters)` and can be found in the following directories `r as.character(output_results_dir)` 
 
-```{r, eval=params$OUTPUT}
+```{r, eval=params$output_results}
 
 pwalk(list(data = nested_df$described,
            names = nested_df$variables,
@@ -453,7 +452,7 @@ nested_df %>%
 
 ### Frequency parameters
 
-```{r, eval=params$OUTPUT, results='show', include=TRUE, collapse = TRUE, fig.width=12, fig.asp = 0.3, out.width='200%'}
+```{r, eval=params$output_results, results='show', include=TRUE, collapse = TRUE, fig.width=12, fig.asp = 0.3, out.width='200%'}
 
 nested_df %>% 
   filter(!str_detect(variables, "log|Freq")) %>% # fix var set names to avoid doing this every time
@@ -518,9 +517,38 @@ walk2(c("normalized_wave_freq_all"),
 
 
 
-
-
 ```
 
+
+
+
+### checking the files for repository ->  done 
+
+```{r}
+cleaned_df %>% 
+  names
+```
+
+
+```{r}
+cleaned_df %>% 
+  # names
+  # distinct(filename) %>% 
+  distinct(Date) %>%
+  arrange(desc(.))
+```
+
+Finding the folder dates where the data is located and save it as an csv file.
+Note: Luckily for this set of the experiment you can save the entire folder without cherry-picking specific files/subfolders. But for other datasets you may need to check.
+
+```{r}
+
+cleaned_df %>% 
+  distinct(Date) %>% 
+  arrange(desc(.)) %>% 
+  mutate(Date = as.character(Date)) %>% 
+  mutate(Date = str_sub(Date, start = -8) %>% str_replace_all(pattern = "-", "")) %>% 
+  write_csv(file = "perme_cells_dates.csv")
+```
 
 
