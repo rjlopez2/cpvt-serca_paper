@@ -4,14 +4,13 @@ author: "Ruben Lopez"
 date: "Generated on: `r format(Sys.time(), '%d.%m.%Y')`"
 output:
   html_document: default
-  word_document: default
 editor_options:
   chunk_output_type: inline
+params:
+  output_results: FALSE
 ---
 
-# Analysis of Intra SR Ca^2+^ in Permeabilized cells
-
-
+# Analysis of luminal SR Ca^2+^ in permeabilized cells
 
 ### This document contain the following: 
 
@@ -21,4 +20,163 @@ editor_options:
 
 - 3. [x] Superplots figures 
 
+
+```{r, setup, echo=FALSE}
+## Setting enviroment
+knitr::opts_chunk$set(
+  comment = '', fig.width= 6, fig.asp = 0.8, warning=FALSE, message=FALSE, results='hide', include=FALSE, echo=FALSE)
+```
+
+your parameter `r params$output_results`
+
+------------------------------------------------------------------------
+
+```{r}
+
+############# Importing libraries #############
+
+pacman::p_load(AnlysisOfWaves, # custom functions for analysis and loading of additional libraries
+               here, fs, # folder's system navigation,
+               readxl,readr,
+               dplyr, tidyr, purrr, stringr, forcats) # io of tabular files,
+               # cowplot,
+               # purrr, dplyr, tidyr, stringr, kableExtra, # wrangling data
+               # ggplot2, ungeviz, # piloting
+               # lmerTest, broom.mixed, emmeans) # tools for mixed effect model computation and multiple comparison
+
+options("scipen" = 999, "digits" = 4)
+
+
+```
+
+
+# define variable namespace for ploting and directories
+
+```{r}
+
+SR_parameters <- c("SR_tau", "SR_DFF0", "SR_Baseline") %>% 
+  rlang::set_names()
+
+# experiment_dir <- "/Volumes/RUBEN FILES/Ruben/Work/GroupNiggli/Confocal/%s/SR_experiments"
+# years <- c(2019, 2021, 2022)
+# expe_dir_list <- map_chr(years, ~ sprintf(experiment_dir, .x))
+
+```
+
+
+## Load the Newest* local SR raw data from the csv file. 
+
+NOTE: Check always the last date!!!
+
+
+```{r}
+raw_sr_data <- read_csv(file = paste(here("datasets",
+                                          "perme_cells",
+                                          "SR_calcium",
+                                          paste("2022-03-17",
+                                                "SR_raw_data.csv", sep = "_"))), # Check always the last date!!!
+                        col_types = str_c(c(rep("f", 11), # convert to factors collumns 1 to 11
+                                            "_", # skip column "Blank_SR_col"
+                                            rep("d", 4)), # coerce to double the numeric variables
+                                          collapse = "")) %>% 
+  mutate(Animal = fct_relevel(Animal, "CPVT-HET", after = 1))
+
+raw_sr_data %>% 
+  glimpse()
+
+# levels(raw_sr_data$Animal)
+```
+
+# cleaning raw dataset
+
+```{r}
+raw_sr_data <- raw_sr_data %>% 
+  filter(Condition != "Control") %>% # remove control and old experiments with 3 min incubation
+  filter(!Inc_time_min %in% c(3)) %>% # remove control and old experiments with 3 min incubation
+  select(-Treatment) %>% # remove repeated column
+  filter(!(Date == "2019-10-25" & Experiment == "P2 CS3")) %>% # in this experiment cells did not react to drug (Fab)
+  filter(!(Date == "2019-10-22" & Experiment == "P4 CS2")) %>% # this is a very obvious outlier in the dataset.
+  filter(!(Date == "2019-10-31" & Experiment == "P3 CS3"))  %>% # Movement at caffeine application. Removed from dataset (vehicle).
+  filter(!(Date == "2022-02-02" & Experiment == "P4 CS4"))  # this is an outlier in the dataset (vehicle)
+
+```
+
+
+# aggregate by cell
+
+
+
+```{r}
+
+by_cell_df <- raw_sr_data %>% 
+  summarize_sr_by_cell_func()
+
+by_cell_df %>% 
+  glimpse()
+```
+
+# 4. Load Miguel data alone and join with your aggregated-by-cell dataset
+
+## load Miguel's data
+
+```{r}
+Migule_SR_df <- read_csv(here("datasets",
+                              "perme_cells",
+                              "SR_calcium",
+                              "2022-01-07_Miguel_SR_measurements.csv"),
+                         col_types = str_c(c(rep("f", 6), 
+                                             rep("d", 3)), 
+                                           collapse = ""),
+                         show_col_types = FALSE) %>% 
+  add_Treatment_factor_func() %>% 
+  mutate(Treatment = factor(Treatment)) %>% # set to factor treatment
+  rename_with(~ str_sub(.x, end = -6), .cols = ends_with("mean")) # remove sufix of colnames
+
+
+## join Miguel and your aggregated dataset
+
+
+pooled_sr_df <- by_cell_df %>% 
+  left_join(select(Migule_SR_df, -Treatment))
+
+pooled_sr_df %>%
+  glimpse()
+
+```
+
+# Create the permeabilization variable again for later be introduced in the mix model
+
+```{r}
+
+pooled_sr_df <- pooled_sr_df %>% 
+  # mutate(Permeabilization = str_sub(Experiment, start = 1, end = 2))
+  mutate(permeabilization = factor(paste(Animal_No, str_sub(Experiment, start = 1, end = 2), sep = "_"))) 
+
+```
+
+
+### checking the files for repository (take only your dataset) ->  done 
+
+```{r}
+by_cell_df %>% 
+  names
+```
+
+
+```{r}
+by_cell_df %>% 
+  # names
+  # distinct(filename) %>% 
+  distinct(Date) %>%
+  arrange(desc(.))
+```
+
+```{r, eval=FALSE}
+by_cell_df %>%
+  distinct(Date) %>%
+  arrange(desc(.)) %>%
+  mutate(Date = as.character(Date)) %>%
+  mutate(Date = str_sub(Date, start = -8) %>% str_replace_all(pattern = "-", "")) %>%
+  write_csv(file = "SR_calcium_dates.csv")
+```
 
