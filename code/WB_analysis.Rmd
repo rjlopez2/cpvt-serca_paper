@@ -22,3 +22,359 @@ editor_options:
 - 3. [x] Superplots figures 
 
 
+
+```{r, setup, echo=FALSE}
+## Setting enviroment
+knitr::opts_chunk$set(
+  comment = '', fig.width= 6, fig.asp = 0.8, warning=FALSE, message=FALSE, results='hide', include=FALSE, echo=FALSE)
+
+# change this variable to FALSE if no output results desired
+
+output_results = FALSE
+```
+
+
+------------------------------------------------------------------------
+
+```{r}
+
+############# Importing libraries #############
+
+pacman::p_load(AnlysisOfWaves, # custom functions for analysis and loading of additional libraries
+               here, fs, # folder's system navigation,
+               dplyr, tidyr, forcats, purrr,
+               # readxl)
+               ggplot2, ggpubr,
+               readr)
+               # cowplot,
+               # purrr, dplyr, tidyr, stringr, kableExtra, # wrangling data
+               # ggplot2, ungeviz, # piloting
+               # lmerTest, broom.mixed, emmeans) # tools for mixed effect model computation and multiple comparison
+
+options("scipen" = 999, "digits" = 4)
+
+```
+
+
+
+
+# Defining working directories for importing data and exporting results
+
+```{r}
+################ location of the file at the Niggli server ################
+
+# my_server_path <- "/Volumes/GroupNiggli/Ruben/Western Blot/WB_dataset_summary.csv"
+
+################ location of the file in a local machine ################
+
+raw_data_dir <- here("datasets","Western_blots")
+
+
+############# Create folder and names structure #############
+
+# name of parameters for analysis
+RyR_prots <- list("Total_RyR", "Phospho_RyR") %>%
+                                purrr::set_names()
+
+phospho_prots <- list("P2030", "P2808", "P2814") %>% 
+  purrr::set_names()
+
+# name of output directories for each parameter
+output_results_dir <- map(RyR_prots, ~(here("results",
+                               "Western_blots", .x)))
+output_results_dir
+
+# name of output directories for figures
+
+output_figs_dir <- map(RyR_prots, ~(here("figures",
+                               "Western_blots", .x)))
+
+output_figs_dir
+```
+
+
+```{r, eval=output_results}
+# Create all new directories for output results and figures
+
+c(output_results_dir, output_figs_dir) %>% 
+  map(~dir_create(path = .x))
+
+map(phospho_prots, ~ here(output_figs_dir$Phospho_RyR, .x) %>% 
+      dir_create(.))
+
+map(phospho_prots, ~ here(output_results_dir$Phospho_RyR, .x) %>% 
+      dir_create(.))
+```
+
+# Importing raw data and reformating
+
+```{r}
+my_data_set <- read_csv(here(raw_data_dir, 
+                              "WB_dataset_summary.csv"),
+                        local = locale(encoding = "latin1")) %>% 
+  rename(Date_of_Run = 1,
+         Animal = Animal_Gen) %>%
+  mutate(across(1:5, factor)) %>%
+  mutate(Animal = factor(case_when(Animal == "CPVT-WT" ~ "WT",
+                            Animal == "CPVT-HET" ~ "CPVT"),
+                         levels = c("WT", "CPVT"))) %>%
+  mutate(Condition = factor(case_when(Condition == "Iso" ~ "ISO",
+                                      Condition == "Control" ~ "Control"),
+                            levels = c("Control", "ISO")))
+# my_data_set
+```
+
+
+# Normalization 1 - Normalize each protein by their total Protein
+divide each target protein by the total Portein. You must first normalize each lane to its total protein
+
+```{r}
+my_data_set_Norm_TotProt <- my_data_set %>% 
+  group_by(Date_of_Run, Animal, Date_of_Birth, Animal_No, Condition) %>% 
+  mutate(RyR = RyR / Tot_Pro_RyR,
+         P2808 = P2808 / Tot_Pro_P2808,
+         P2814 = P2814 / Tot_Pro_P2814,
+         P2030 = P2030 / Tot_Pro_P2030)
+
+# my_data_set_Norm_TotProt
+```
+
+
+
+# Internal Normalization
+# split the all dataset in the differencts gels
+
+```{r}
+Gel_1 <- my_data_set_Norm_TotProt %>%
+  filter(Date_of_Run == "08.10.19")
+
+Gel_2 <- my_data_set_Norm_TotProt %>%
+  filter(Date_of_Run == "30.10.19")
+
+Gel_3 <- my_data_set_Norm_TotProt %>%
+  filter(Date_of_Run == "26.11.19")
+
+Gel_4 <- my_data_set_Norm_TotProt %>%
+  filter(Date_of_Run == "03.12.19")
+
+```
+
+
+# Internal Normalization 1: 
+Divide gels 2 3 4 by its own reference 
+
+```{r}
+
+Gel_1_reference <- Gel_1 %>% 
+  filter(Animal_No == "6026",
+         Condition == "ISO")
+
+# Gel_1_reference # taking later for normalizing gel 2
+
+Gel_1_2nd_reference <- Gel_1 %>% # taking later for normalizing -->> used for Gel 3 & 4
+  filter(Animal_No == "6034",
+         Condition == "Control")
+
+
+# Gel_1 <- Gel_1 %>% 
+#   transmute(P2808 = P2808 * Gel_1_reference$P2808,
+#             P2814 = P2814 * Gel_1_reference$P2814,
+#             P2030 = P2030 * Gel_1_reference$P2030)
+# 
+
+
+# GEL 2
+
+Gel_2_reference <- Gel_2 %>% 
+  filter(Animal_No == "6026",
+         Condition == "ISO")
+
+# Gel_2_reference
+
+Gel_2 <- Gel_2 %>% 
+  mutate(RyR = RyR / Gel_2_reference$RyR,
+         P2808 = P2808 / Gel_2_reference$P2808,
+         P2814 = P2814 / Gel_2_reference$P2814,
+         P2030 = P2030 / Gel_2_reference$P2030)
+
+# Gel_2
+
+
+# GEL 3
+
+Gel_3_reference <- Gel_3 %>% # --->>> new reference
+  filter(Animal_No == "6034",
+         Condition == "Control")
+
+# Gel_3_reference
+
+Gel_3 <- Gel_3 %>% 
+  mutate(RyR = RyR / Gel_3_reference$RyR,
+         P2808 = P2808 / Gel_3_reference$P2808,
+         P2814 = P2814 / Gel_3_reference$P2814,
+         P2030 = P2030 / Gel_3_reference$P2030)
+
+Gel_3
+
+# GEL 4
+
+Gel_4_reference <- Gel_4 %>% # --->>> new reference
+  filter(Animal_No == "6034",
+         Condition == "Control")
+
+Gel_4_reference
+
+Gel_4 <- Gel_4 %>% 
+  mutate(RyR = RyR / Gel_4_reference$RyR,
+            P2808 = P2808 / Gel_4_reference$P2808,
+            P2814 = P2814 / Gel_4_reference$P2814,
+            P2030 = P2030 / Gel_4_reference$P2030)
+
+Gel_4
+
+```
+
+
+# Internal Normalization 2: 
+multiply  2, 3 & 4 by the external reference (gel 1)
+
+
+
+```{r}
+Gel_1_reference # -->> only used for Gel 2
+Gel_2
+Gel_2 <- Gel_2 %>% 
+  mutate(RyR = RyR * Gel_1_reference$RyR,
+            P2808 = P2808 * Gel_1_reference$P2808,
+            P2814 = P2814 * Gel_1_reference$P2814,
+            P2030 = P2030 * Gel_1_reference$P2030)
+
+
+
+Gel_1_2nd_reference
+
+Gel_3 <- Gel_3 %>% 
+  mutate(RyR = RyR * Gel_1_2nd_reference$RyR,
+            P2808 = P2808 * Gel_1_2nd_reference$P2808,
+            P2814 = P2814 * Gel_1_2nd_reference$P2814,
+            P2030 = P2030 * Gel_1_2nd_reference$P2030)
+
+Gel_4 <- Gel_4 %>% 
+  mutate(RyR = RyR * Gel_1_2nd_reference$RyR,
+            P2808 = P2808 * Gel_1_2nd_reference$P2808,
+            P2814 = P2814 * Gel_1_2nd_reference$P2814,
+            P2030 = P2030 * Gel_1_2nd_reference$P2030)
+```
+
+re-Bind all gels 
+
+
+```{r}
+my_data_set_Norm_TotProt <- rbind(Gel_1, Gel_2, Gel_3, Gel_4) %>% 
+  ungroup %>% 
+  select(!starts_with("Tot")) %>% 
+  # remove repeated values
+  ungroup %>%
+  pivot_longer(cols =  c(P2808:P2030),
+               names_to = "Proteins",
+               values_to = "Relative_value" ) %>%
+  distinct(Relative_value, .keep_all = T) %>%
+  pivot_wider(names_from = Proteins, values_from = "Relative_value")
+
+
+my_data_set_Norm_TotProt
+```
+
+check individual experiment trending 
+
+
+```{r}
+my_data_set_Norm_TotProt %>% 
+  select(!starts_with("P")) %>% 
+  pivot_longer(cols =  RyR,
+               names_to = "Protein",
+               values_to = "Relative_value") %>% 
+  # distinct(Relative_value, .keep_all = T) %>%
+  ggplot(aes(x = Condition,
+             y = Relative_value)) +
+  # geom_boxplot(aes(color = Animal)) +
+  geom_point(aes(color = Animal_No), ) +
+  facet_grid(. ~ Protein + Animal) +
+  geom_line(aes(group = Animal_No)) +
+  stat_compare_means(paired = T, show.legend = F)
+```
+
+# Plot total RyR
+
+
+```{r}
+my_data_set_Norm_TotProt %>% 
+  select(!starts_with("P")) %>%
+  pivot_longer(cols =  RyR,
+               names_to = "Protein",
+               values_to = "Relative_value" ) %>%
+  # average the ISO + Control replicates
+  group_by(Date_of_Run, Animal, Date_of_Birth, Animal_No, Protein) %>% 
+  summarise(across(where(is.double), mean), .groups = "drop") %>% 
+  
+  mutate(Animal = fct_relevel(Animal, c("CPVT", "WT"))) %>%
+  ggplot(aes(x = Animal,
+             y = Relative_value,
+             fill = Animal,
+             color = Animal)) +
+###### Add single data point ######
+    geom_point(shape = 21,
+              alpha = 0.25,
+              # size = 4,
+              size = 2,
+              position = position_jitterdodge(jitter.width = 0.5,
+                                              seed = 999,
+                                              dodge.width = 0.9),
+              show.legend = F) +
+###### Add mean + 1sd ######
+  stat_summary(fun.data = "mean_sdl",
+               fun.args = list(mult = 1),
+               size = 2,
+               alpha = 0.7,
+               show.legend = F) +
+###### Add p.value comparison ######
+  # stat_compare_means(paired = F, # this compute p.values
+  #                    show.legend = F,
+  #                    label.y = 2) +
+###### Add reference line ######
+    geom_hline(yintercept = 1, 
+             # color  = "grey",
+             linetype = "longdash") +
+
+  scale_fill_manual(values = c( "#CC0000", "#666666")) +
+  scale_color_manual(values = c( "#CC0000", "#666666")) +
+  facet_grid(Protein  ~ .) +
+  theme(strip.text.y.right = element_text(angle = 0, size = 18, margin = margin(l = 1.5, unit = "cm"))) +
+   # xlab(label = "") + # Remove axis title
+   xlab(label = NULL) + # Remove axis title
+   ylab(label = "Relative value") + # Remove axis title
+  coord_flip(ylim = c(0.1, 3)) +
+    
+  pptx_presentation_theme_func(base_size = 18)
+
+
+```
+# Export plot of total RyR
+
+```{r eval = output_results}
+  ########## Save your plot ##########
+  ggsave(filename = here(output_figs_dir$Total_RyR, 
+                          paste(format(Sys.Date(),
+                                       "%y%m%d"),
+                                "WB_RyR_alone_dots.pdf",
+                                sep = "_")),
+         device = "pdf",
+         units = "cm",
+         # width = 23, # use this dimension reference for the paper images.
+         # height = 17.6) # use this dimension reference for the paper images.
+         width = 12,
+         height = 11)
+
+
+```
+
