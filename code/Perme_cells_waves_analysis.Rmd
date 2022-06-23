@@ -46,9 +46,7 @@ pacman::p_load(AnlysisOfWaves, # custom functions for analysis and loading of ad
 
 options("scipen" = 999, "digits" = 4)
 
-# change this variable to FALSE if no output results desired
 
-params$output_results
 ```
 
 
