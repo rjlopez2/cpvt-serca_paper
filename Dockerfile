@@ -1,4 +1,5 @@
-FROM rocker/verse:4.1.1
+FROM rocker/verse:4.2.0
+#FROM rocker/verse:4.1.1
 
 RUN apt-get update -y && apt-get install -y libtiff5-dev libwebp-dev libzstd-dev
 
@@ -16,6 +17,7 @@ WORKDIR /home/rstudio
 COPY renv.lock renv.lock
 
 ENV RENV_VERSION 0.15.5
+RUN R -e "install.packages('Markdown', repos = c(CRAN = 'https://cloud.r-project.org'))"
 RUN R -e "install.packages('remotes', repos = c(CRAN = 'https://cloud.r-project.org'))"
 RUN R -e "remotes::install_github('rstudio/renv@${RENV_VERSION}')"
 
