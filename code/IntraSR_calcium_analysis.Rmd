@@ -1,0 +1,24 @@
+---
+title: "Automatic report"
+author: "Ruben Lopez"
+date: "Generated on: `r format(Sys.time(), '%d.%m.%Y')`"
+output:
+  html_document: default
+  word_document: default
+editor_options:
+  chunk_output_type: inline
+---
+
+# Analysis of Intra SR Ca^2+^ in Permeabilized cells
+
+
+
+### This document contain the following: 
+
+- 1. [x] Descriptive statistics on wave parameters in intact cell 
+
+- 2. [x] Hypothesis testing using linear regression with mixed effect model
+
+- 3. [x] Superplots figures 
+
+
