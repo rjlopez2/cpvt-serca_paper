@@ -13,6 +13,9 @@ by](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org
 !](https://img.shields.io/badge/Ask%20me-anything-1abc9c.svg)](https://github.com/rjlopez2/cpvt-serca_paper/issues/new)
 ![Open Source
 Love](https://badges.frapsoft.com/os/v2/open-source.svg?v=103)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5226364.svg)](https://doi.org/10.5281/zenodo.5226364)
+
+
 
 # Compile
 
