@@ -318,6 +318,8 @@ nested_df %>%
 
 ## Hypotesis testing
 
+### Testing for the wave kinetics parameters
+
 We use mix model to describe significance in the multiples waves parameters analyzed.
 
 Let's first define the model that describe our hypothesis which is defined by the fix effects:  Genotype (WT/CPVT) or Drug condition (Control/Fab/cAMP) and the random effect: Animal ID.
@@ -327,49 +329,54 @@ Let's first define the model that describe our hypothesis which is defined by th
 # Model 1. mixed linear model with only Animal level (no interaction)
 
 nointer_mixmodel <- function(my_dataset){
-  lmerTest::lmer(value ~  Animal + (Treatment / Condition) + (1|Animal_No), 
+  # lmerTest::lmer(value ~  Animal + (Treatment / Condition) + (1|Animal_No), # NOTE: slash indicate nesting no 
+  lmerTest::lmer(value ~  Animal + (Treatment * Condition) + (1|Animal_No),
                  data = my_dataset,
                  REML = FALSE)
 }
 
-# Model 5. mixed linear model with Animal level * with interaction
+# Model 5. mixed linear model with Animal level * with interaction. NOTE: you cannot use this type of interaction because you did not add drugs in additive fashion, example (Fab + cAMP). This you see when compute the contrasts. 
 
 inter_mixmodel <- function(my_dataset){
-  lmerTest::lmer(value ~ Animal * Treatment * Condition + (1|Animal_No), 
+  # lmerTest::lmer(value ~ Animal * (Treatment / Condition) + (1|Animal_No), # NOTE: slash indicate nesting no interactio
+  lmerTest::lmer(value ~ Animal * (Treatment * Condition) + (1|Animal_No),
                  data = my_dataset,
                  REML = FALSE)
 }
 ```
 
 
-We apply the model and check the output
+
 
 ```{r}
 nested_df$by_cell_data
 ```
+We apply the model and check the output. Now in our grouped nested df we contain the model objects.
 
-
-```{r}
+```{r results='show', include=TRUE}
 model_raw_nsdf <- nested_df %>% 
 # nested_df %>%
   select(by_cell_data) %>%
   apply_model_func(targed_dataset = "by_cell_data", my_model = nointer_mixmodel) %>%
-  apply_model_func(targed_dataset = "by_cell_data", my_model = inter_mixmodel) %>% 
+  apply_model_func(targed_dataset = "by_cell_data", my_model = inter_mixmodel) %>%
   pivot_longer(cols = ends_with("model"), 
                names_to = "model_name", 
                values_to = "model")
 
+model_raw_nsdf
 ```
 
 
 
-We extract information and inspect side-by-side model performance, at the left side is the model without interaction and right is the one with interaction.
+Then, we extract information and inspect side-by-side model performance, at the left side is the model without interaction and right is the one with interaction.
+
 
 ```{r}
 model_results_nsdf <- model_raw_nsdf %>% 
   extract_model_info_func() %>% 
   plot_residuals_func()
 ```
+
 
 ```{r results='show', include=TRUE, collapse = TRUE, fig.width=16, fig.asp = 0.8, out.width='200%'}
 wave_parameters %>% 
@@ -381,6 +388,169 @@ wave_parameters %>%
   plot_grid(plotlist = ., ncol = 1)
 
 ```
+
+The residuals looks ok, so we stick with the mix model  with interaction and start making the comparisons of the different treatments, aka we make the contrasts as describe in the following step.
+
+### Make Contrast
+
+#### Wave kinetics
+
+
+we create first the marginal means object and then we design a matrix to make the desired comparisons. Here we want to compare genotypes differences among control and or drug application under different drugs, so we design the matrix accordingly
+
+```{r}
+
+emmens_ns_df <- model_raw_nsdf %>%
+  # model_raw_nsdf %>%
+  # filter(str_detect(model_name, "no")) %>% 
+  mutate(em_means = map2(by_cell_data, model, ~ emmeans(object =  .y, 
+                                                        specs =  ~ Animal * Treatment * Condition, 
+                                                        data = .x)),
+         estimates = map(em_means, ~(.x %>%
+                                       as_tibble %>%
+                                       drop_na %>%
+                                       mutate(across(where(is.double),
+                                                     ~ round(.x, digits =2)))))) 
+emmens_ns_df %>% 
+  mutate(coef_grid = map(em_means, ~coef(pairs(.x)))) %>% 
+  select(model_name, coef_grid)
+```
+
+```{r results='show', include=TRUE}
+coef(pairs(emmens_ns_df[, "em_means"][[1]][[1]]))
+```
+
+coefficient matrix in the interaction model
+
+```{r results='show', include=TRUE}
+coef(pairs(emmens_ns_df[, "em_means"][[1]][[2]]))
+```
+
+
+
+and here is our final matrix 
+
+```{r results="show", incude = TRUE}
+contrast_matrix <- list("WT_Control_Fab vs CPVT_Control_Fab" = 
+                          c(1, rep(0, 11)) - c(0, 1, rep(0, 10)),
+                          
+                        "WT_Fab_Fab vs CPVT_Fab_Fab" =
+                          c(rep(0, 8), 1, rep(0, 3)) - c(rep(0, 9), 1, rep(0, 1)),
+
+                        "WT_Control_cAMP vs CPVT_Control_cAMP" =
+                          c(rep(0, 2), 1, rep(0, 9)) - c(rep(0, 3), 1, rep(0, 8)),
+
+                        "WT_cAMP_cAMP vs CPVT_cAMP_cAMP" =
+                          c(rep(0, 6), 1, rep(0, 5)) - c(rep(0, 7), 1, rep(0, 4))
+                        )
+
+
+contrast_matrix
+```
+
+
+
+
+store the comparisons aka contrasts
+
+```{r}
+emmens_ns_df <- emmens_ns_df %>% 
+  mutate(contrast = map(em_means, ~(contrast(object = .x, 
+                                             # method = "pairwise",
+                                             method = contrast_matrix, # error when using custom matrix innested model with the "/" symbol. check above in the definition of teh model
+                                             adjust = "BH") %>% 
+                                      broom::tidy() %>%
+                                      rstatix::add_significance(p.col = "adj.p.value", # adding p-significance symbols
+                                                                output.col = "significance") %>%
+                                      mutate(across(where(is.double),
+                                                    ~ round(.x, digits =2)))
+                                    
+  ))) 
+  
+
+```
+
+```{r}
+emmens_ns_df %>% 
+  pull(contrast)
+
+emmens_ns_df %>% 
+  pull(em_means) %>% 
+  map(~(contrast(object = .x, 
+                 method = contrast_matrix,
+                 adjust = "BH")))
+```
+
+
+Let's have a look at our contrast table in the interaction model.
+
+```{r results='show', include=TRUE}
+
+# wave_kinetics_contras_table <- emmens_ns_df %>% 
+#   filter(!str_detect(model_name, "nointer")) %>% #take only the model with interaction
+#   select(contrast, model_name) %>% 
+#   unnest() %>% 
+#   mutate(significance = case_when(adj.p.value < 0.0001 ~ "****",
+#                                   adj.p.value < 0.001 ~ "***",
+#                                   adj.p.value < 0.01 ~ "**",
+#                                   adj.p.value < 0.05 ~ "*",
+#                                   adj.p.value > 0.05 ~ "ns",
+#                                   TRUE ~ as.character(adj.p.value)), .before = model_name) %>% 
+#   mutate(group1 = word(contrast, 1),
+#          group2 = word(contrast, 3)) %>% 
+#   pivot_longer(cols = starts_with("group"), names_to = "groups", values_to = "Condition") %>% 
+#   mutate(Animal = str_extract(Condition, pattern = "WT|CPVT"),
+#          Condition = str_extract(Condition, pattern = "Control|ISO")) %>% 
+#   pivot_wider(values_from = Animal, names_from = groups) %>% 
+#   relocate(Condition, starts_with("group"), .after = variables) %>% 
+#   select(-contrast) 
+
+# wave_kinetics_contras_table %>% 
+emmens_ns_df %>% 
+  filter(!str_detect(model_name, "nointer")) %>% #take only the model with interaction
+  select(contrast, model_name) %>% 
+  ungroup() %>% 
+  unnest() %>%
+  mutate(group1 = word(contrast, 1),
+         group2 = word(contrast, 3)) %>% 
+  # pivot_longer(cols = starts_with("group"), names_to = "groups", values_to = "Condition") %>%
+  # mutate(Animal = str_extract(Condition, pattern = "WT|CPVT"),
+  #        Condition = str_extract(Condition, pattern = "Control|ISO")) %>%
+  # pivot_wider(values_from = Animal, names_from = groups) %>%
+  relocate(starts_with("group"), .after = term) %>%
+  select(-contrast) %>%
+  kable %>%
+  kable_styling(font_size = table_output_font_size)
+
+```
+
+
+
+### Export results
+
+----->>>>> you stay here. 17.07.2022. TODO: fix path to export and name of variables to display in the next code chunks
+
+Here we export the test contrast from the wave kinetics parameters: `r wave_kinet_parameters` and can be found in the directory: `r output_results_dir$kinetics`
+
+```{r eval = params$output_results}
+
+# wave_kinetics_contras_table %>% 
+#   write_csv(here(output_results_dir$kinetics, 
+#                   paste(format(Sys.time(),
+#                                '%Y%m%d'),
+#                         "test_stats.csv",
+#                         sep = "_")))
+```
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -519,7 +689,6 @@ walk2(c("normalized_wave_freq_all"),
 
 
 
-### checking the files for repository ->  done 
 
 ```{r}
 cleaned_df %>% 
@@ -535,10 +704,11 @@ cleaned_df %>%
   arrange(desc(.))
 ```
 
-Finding the folder dates where the data is located and save it as an csv file.
-Note: Luckily for this set of the experiment you can save the entire folder without cherry-picking specific files/subfolders. But for other datasets you may need to check.
+
 
 ```{r, eval=FALSE}
+# Finding the folder dates where the data is located and save it as an csv file.
+# Note: Luckily for this set of the experiment you can save the entire folder without cherry-picking specific files/subfolders. But for other datasets you may need to check.
 
 cleaned_df %>%
   distinct(Date) %>%
@@ -548,4 +718,11 @@ cleaned_df %>%
   write_csv(file = "perme_cells_dates.csv")
 ```
 
+\
+
+<center>FIN</center>
+
+\
+\
+\
 
