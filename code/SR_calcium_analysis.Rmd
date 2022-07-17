@@ -38,11 +38,12 @@ your parameter `r params$output_results`
 pacman::p_load(AnlysisOfWaves, # custom functions for analysis and loading of additional libraries
                here, fs, # folder's system navigation,
                readxl,readr,
-               dplyr, tidyr, purrr, stringr, forcats) # io of tabular files,
+               cowplot,
+               dplyr, tidyr, purrr, stringr, forcats, # io of tabular files,
                # cowplot,
                # purrr, dplyr, tidyr, stringr, kableExtra, # wrangling data
                # ggplot2, ungeviz, # piloting
-               # lmerTest, broom.mixed, emmeans) # tools for mixed effect model computation and multiple comparison
+               lmerTest, broom.mixed, emmeans) # tools for mixed effect model computation and multiple comparison
 
 options("scipen" = 999, "digits" = 4)
 
@@ -180,3 +181,244 @@ by_cell_df %>%
   write_csv(file = "SR_calcium_dates.csv")
 ```
 
+# Create the permeabilization variable again for later be introduced in the mix model
+
+```{r}
+
+pooled_sr_df <- pooled_sr_df %>% 
+  # mutate(Permeabilization = str_sub(Experiment, start = 1, end = 2))
+  mutate(permeabilization = factor(paste(Animal_No, str_sub(Experiment, start = 1, end = 2), sep = "_"))) 
+
+```
+
+
+# 6.1 Hirarchical test
+
+## Nest the df to asses asumption:
+
+- Independedncy (done)
+- No outliers 
+- Normality -> ok
+- qq plot (only visual)
+- Homogeneity of variance: this is not assumed, so we apply simple transformation to the mean and center the dat to check if impreve model performance.
+
+
+ 
+ 
+```{r}
+nested_df <- pooled_sr_df %>%
+# pooled_sr_df %>%
+  
+  # names
+  pivot_longer(cols = where(is.double), names_to = "Parameters", ) %>% 
+  group_by(Parameters) %>% 
+  nest() %>% 
+  rename(raw_data = data) %>% 
+   # apply a transformation of the data = centering the dataset around the mean
+  mutate(centered_data = map(raw_data, ~ .x %>%
+                               group_by(Animal, Condition) %>%
+                               mutate(value = value - mean(value)) %>% 
+                               ungroup)) %>% 
+  mutate(log10_data = map(raw_data, ~ .x %>%
+                               group_by(Animal, Condition) %>%
+                               mutate(value = log10(value)) %>% 
+                               ungroup)) %>% 
+  filter(Parameters == "SR_Baseline") %>% 
+  pivot_longer(cols = ends_with("data"), names_to = "dataset_type", values_to = "data")
+
+# nested_df %>%
+#   # pull(log10_data)
+#   pull(data)
+  # pull(centered_data)
+```
+
+
+## Create helper function to apply models
+ 
+```{r}
+
+apply_model_func <- function(dataset,
+                             my_var = "data",
+                             my_model){
+  my_var <- sym(my_var)
+
+  dataset %>%
+    mutate("{{my_model}}" := purrr::map(!!my_var, my_model))# %>%
+
+}
+
+
+```
+ 
+```{r}
+
+levn_test <- function(my_dataset){
+  car::leveneTest(value ~ Animal * Condition, data = my_dataset) # *** NOTE: from the description: If y is a linear-model object or a formula, the variables on the right-hand-side of the model must all be factors and must be completely crossed
+  # bartlett.test(value ~ interaction(Animal , Condition), data = my_dataset)
+}
+
+```
+ 
+
+# 6.2 Describe and transform nested data: exploratory analysis
+ 
+```{r}
+
+nested_processed <- nested_df %>% 
+  describe_nested_df("data") #%>% 
+  
+nested_processed
+
+```
+
+Q-Q plots
+
+
+```{r, results='show', include=TRUE, collapse = TRUE, fig.width=12, fig.asp = 1, out.width='100%'}
+nested_processed %>% 
+  ungroup() %>% 
+  filter(dataset_type == "raw_data") %>% 
+  pull(qq_plot) %>% 
+  plot_grid(plotlist = ., ncol = 1)
+```
+
+Outliers
+
+```{r}
+ nested_processed %>% 
+  filter(Parameters == "SR_Baseline") %>%
+  
+    pluck("outliers")
+    # pluck("described")
+    # pluck("qq_plot")
+```
+
+
+Homogeneity of Variance 
+
+NOTE: for get about for the moment.
+
+```{r}
+ nested_processed %>% 
+  filter(Parameters == "SR_Baseline") %>%
+  
+    pluck("levn_test")
+```
+
+
+```{r}
+nested_processed
+```
+
+## check again descriptive stats
+
+```{r}
+nested_processed %>% 
+  filter(Parameters == "SR_Baseline") %>% 
+  pluck("described", 1) #%>% 
+  # filter(!Condition == "Vehicle")
+
+########## Save the output #########
+   # write_csv(here("output_results", 
+   #               "perme_cells",
+   #               "SR_calcium",
+   #               "baseline",
+   #               paste(format(Sys.time(),
+   #                            '%Y%m%d'),
+   #                     "descriptive_summary_stats.csv",
+   #                     sep = "_")))
+```
+
+# 7. Make anova and mix model(s)
+ 
+```{r}
+anova1 <- function(my_dataset){
+  # rstatix::anova_test(value ~ Animal + Condition, data = my_dataset)
+  # car::Anova(lm(value ~ Animal + Condition, data = my_dataset), type = "III")
+  lm(value ~ Animal + Condition, data = my_dataset)
+}
+
+# exclude model with interactions.
+
+# anova2 <- function(my_dataset){
+#   # rstatix::anova_test(value ~ Animal * Condition, data = my_dataset)
+#   # car::Anova(lm(value ~ Animal * Condition, data = my_dataset), type = "III")
+#   lm(value ~ Animal * Condition, data = my_dataset)
+#   # lm(value ~ Condition_grouped, 
+#   #    data = my_dataset)
+# }
+
+mixm_1 <- function(my_dataset){
+  lmerTest::lmer(value ~ Animal + Condition + (1|Animal_No), 
+                 data = my_dataset,
+                 REML = FALSE)
+}
+
+# exclude model with interactions.
+
+# mixm_2 <- function(my_dataset){
+#   lmerTest::lmer(value ~ Animal * Condition + (1|Animal_No), 
+#                  data = my_dataset,
+#                  REML = FALSE)
+# }
+
+mixm_3 <- function(my_dataset){
+  lmerTest::lmer(value ~ Animal + Condition + (1|Animal_No/permeabilization), 
+                 data = my_dataset,
+                 REML = FALSE)
+}
+
+modeled_data <- nested_processed %>% 
+  filter(Parameters == "SR_Baseline") %>% # Select only the baseline
+  apply_model_func(my_model = anova1) %>%
+  # apply_model_func(my_model = anova2) %>% # exclude model with interactions.
+  apply_model_func(my_model = mixm_1) %>% 
+  # apply_model_func(my_model = mixm_2) %>%  # exclude model with interactions.
+  apply_model_func(my_model = mixm_3) %>% 
+  pivot_longer(cols = contains(c("anova", "mix")), 
+               names_to = "model_name", 
+               values_to = "model_obj") %>% 
+  mutate(est_mmeans = map(model_obj, ~ emmeans(.x, 
+                                               specs = pairwise ~ Animal + Condition,  adjust = "BH")))
+  
+
+modeled_data %>% 
+  head(1) %>% 
+  pull(est_mmeans) %>% 
+  pluck(1) %>% 
+  summary
+
+```
+
+
+
+#7.1 Models performance
+ 
+```{r}
+model_performance <- modeled_data %>% 
+  mutate(glance = map(model_obj, ~ broom.mixed::glance(.x))) %>% # NOTE: use {broom.mixed} when working with mixed models, otherwise throw error. 
+  mutate(tidy = map(model_obj, ~ broom.mixed::tidy(.x))) %>% # NOTE: use {broom.mixed} when working with mixed models, otherwise throw error. 
+  mutate(augment = map(model_obj, ~ broom.mixed::augment(.x))) %>% # NOTE: use {broom.mixed} when working with mixed models, otherwise throw error. 
+  mutate(logLik = (glance %>% map_dbl(~ .x$logLik * -2)),
+         AIC = (glance %>% map_dbl(~ .x$AIC)),
+         BIC = (glance %>% map_dbl(~ .x$BIC)),
+         # p_val = (glance %>% map_dbl(~ .x$p.value)),
+         # sigma = (glance %>% map_dbl(~ .x$sigma))) %>% 
+         p_val = map(model_obj,  ~(.x %>%
+                                 car::Anova(type = "III") %>%
+                                 broom::tidy())))# %>% 
+  # pluck("glance", 3)
+  # pluck("p_val")
+  model_performance
+```
+
+```{r}
+model_performance %>% 
+  filter(model_name == "anova1") %>% 
+  filter(dataset_type == "raw_data") %>% 
+  pull(augment)
+  # pull(augment)
+  # filter(model_name == "mixm_1")
+  # filter(model_name == "mixm_3")
+  
+```
