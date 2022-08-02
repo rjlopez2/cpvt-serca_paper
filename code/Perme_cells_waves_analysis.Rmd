@@ -530,26 +530,44 @@ emmens_ns_df %>%
 
 ----->>>>> you stay here. 17.07.2022. TODO: fix path to export and name of variables to display in the next code chunks
 
-Here we export the test contrast from the wave kinetics parameters: `r wave_kinet_parameters` and can be found in the directory: `r output_results_dir$kinetics`
+Here we export the test contrast from the wave kinetics parameters: `r wave_parameters[1:2]` and `r wave_parameters[3]` and can be found under the directory: `r output_results_dir$kinetics`
+
+
+
+#### Export Wave kinetics parameters
 
 ```{r eval = params$output_results}
+emmens_ns_df %>% 
+  filter(!str_detect(model_name, "nointer")) %>% 
+  filter(variables != "Freq_waves_Hz") %>% 
+  pull(contrast) %>% 
+  # length()
+  walk2(.x = ., 
+        .y = wave_parameters[1:3],
+        ~write_csv(x = .x, file = here(output_results_dir$kinetics, 
+                                      paste(format(Sys.time(),
+                                                   '%Y%m%d'), 
+                                            .y, 
+                                            "contrast.csv", sep = "_"))))
 
-# wave_kinetics_contras_table %>% 
-#   write_csv(here(output_results_dir$kinetics, 
-#                   paste(format(Sys.time(),
-#                                '%Y%m%d'),
-#                         "test_stats.csv",
-#                         sep = "_")))
 ```
 
 
 
+#### Export Frequency parameters using the 
 
 
-
-
-
-
+```{r eval = params$output_results}
+emmens_ns_df %>% 
+  filter(!str_detect(model_name, "nointer")) %>% 
+  filter(variables == "Freq_waves_Hz") %>% 
+  pull(contrast) %>% 
+  walk(~write_csv(x = .x, file = here(output_results_dir$frequency, 
+                                      paste(format(Sys.time(),
+                                                   '%Y%m%d'), 
+                                            wave_parameters[4], 
+                                            "contrast.csv", sep = "_"))))
+```
 
 
 
@@ -560,10 +578,6 @@ Here we export the test contrast from the wave kinetics parameters: `r wave_kine
 
 ### Kinetics parameters
 
-```{r}
-# nested_df %>% 
-#   pluck("by_cell_data", 1) 
-```
 
 
 ```{r, results='show', include=TRUE, collapse = TRUE, fig.width=12, fig.asp = 0.3, out.width='200%'}
