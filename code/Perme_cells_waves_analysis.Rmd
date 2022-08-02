@@ -396,7 +396,7 @@ The residuals looks ok, so we stick with the mix model  with interaction and sta
 #### Wave kinetics
 
 
-we create first the marginal means object and then we design a matrix to make the desired comparisons. Here we want to compare genotypes differences among control and or drug application under different drugs, so we design the matrix accordingly
+we first create the marginal means object and then we design a matrix to make the desired comparisons. Here we want to compare genotypes differences among control and or drug application under different drugs, so we design the matrix accordingly
 
 ```{r}
 
@@ -411,31 +411,24 @@ emmens_ns_df <- model_raw_nsdf %>%
                                        drop_na %>%
                                        mutate(across(where(is.double),
                                                      ~ round(.x, digits =2)))))) 
+
+# we explre the size of the coeficient matrix
+
 emmens_ns_df %>% 
   mutate(coef_grid = map(em_means, ~coef(pairs(.x)))) %>% 
-  select(model_name, coef_grid)
-```
-
-```{r results='show', include=TRUE}
-coef(pairs(emmens_ns_df[, "em_means"][[1]][[1]]))
-```
-
-coefficient matrix in the interaction model
-
-```{r results='show', include=TRUE}
-coef(pairs(emmens_ns_df[, "em_means"][[1]][[2]]))
+  select(model_name, coef_grid) #%>% 
+  # pull(coef_grid)
 ```
 
 
+and here we designe our final matrix for comparison
 
-and here is our final matrix 
-
-```{r results="show", incude = TRUE}
+```{r}
 contrast_matrix <- list("WT_Control_Fab vs CPVT_Control_Fab" = 
                           c(1, rep(0, 11)) - c(0, 1, rep(0, 10)),
                           
                         "WT_Fab_Fab vs CPVT_Fab_Fab" =
-                          c(rep(0, 8), 1, rep(0, 3)) - c(rep(0, 9), 1, rep(0, 1)),
+                          c(rep(0, 8), 1, rep(0, 3)) - c(rep(0, 9), 1, rep(0, 2)),
 
                         "WT_Control_cAMP vs CPVT_Control_cAMP" =
                           c(rep(0, 2), 1, rep(0, 9)) - c(rep(0, 3), 1, rep(0, 8)),
@@ -447,9 +440,6 @@ contrast_matrix <- list("WT_Control_Fab vs CPVT_Control_Fab" =
 
 contrast_matrix
 ```
-
-
-
 
 store the comparisons aka contrasts
 
@@ -468,17 +458,6 @@ emmens_ns_df <- emmens_ns_df %>%
   ))) 
   
 
-```
-
-```{r}
-emmens_ns_df %>% 
-  pull(contrast)
-
-emmens_ns_df %>% 
-  pull(em_means) %>% 
-  map(~(contrast(object = .x, 
-                 method = contrast_matrix,
-                 adjust = "BH")))
 ```
 
 
@@ -510,7 +489,7 @@ emmens_ns_df %>%
   filter(!str_detect(model_name, "nointer")) %>% #take only the model with interaction
   select(contrast, model_name) %>% 
   ungroup() %>% 
-  unnest() %>%
+  unnest(cols = c(contrast)) %>%
   mutate(group1 = word(contrast, 1),
          group2 = word(contrast, 3)) %>% 
   # pivot_longer(cols = starts_with("group"), names_to = "groups", values_to = "Condition") %>%
@@ -534,7 +513,7 @@ Here we export the test contrast from the wave kinetics parameters: `r wave_para
 
 
 
-#### Export Wave kinetics parameters
+ Export Wave kinetics parameters
 
 ```{r eval = params$output_results}
 emmens_ns_df %>% 
@@ -554,7 +533,7 @@ emmens_ns_df %>%
 
 
 
-#### Export Frequency parameters using the 
+Export Frequency parameters 
 
 
 ```{r eval = params$output_results}
@@ -582,7 +561,7 @@ emmens_ns_df %>%
 
 ```{r, results='show', include=TRUE, collapse = TRUE, fig.width=12, fig.asp = 0.3, out.width='200%'}
 
-nested_df %>% 
+nested_df <- nested_df %>% 
   filter(!str_detect(variables, "log|Freq")) %>% # fix var set names to avoid doing this every time
   mutate(superplots = map2(by_cell_data,  variables, ~ {.x %>% 
       filter(Condition != "Control") %>%
@@ -625,10 +604,14 @@ nested_df %>%
                      adjusted = 1.5) +
       ggplot2::ylab(.y) +
       geom_hpline(stat = "summary", aes(color = Animal)) # add this line if you want to add average vertical line
-  })) %>% 
+  })) 
+
+
+nested_df %>% 
   pluck("superplots") %>% 
   plot_grid(plotlist = .,
             ncol = 3)
+  
 
 ```
 
@@ -703,11 +686,6 @@ walk2(c("normalized_wave_freq_all"),
 
 
 
-
-```{r}
-cleaned_df %>% 
-  names
-```
 
 
 ```{r}
