@@ -542,6 +542,8 @@ contrast_matrix
 
 
 ```{r}
+# Compute emmenas and extract estimates and contrast
+
 emmens_ns_df <- model_raw_nsdf %>%
 # model_raw_nsdf %>%
   # filter(str_detect(model_name, "no")) %>% 
@@ -564,9 +566,19 @@ emmens_ns_df <- model_raw_nsdf %>%
                                        broom::tidy() %>% 
                                         mutate(across(where(is.double),
                                                       ~ round(.x, digits =2)))
-                                     ))) 
-
+                                     )))
 ```
+
+
+```{r}
+emmens_ns_df$contrast
+```
+```{r}
+emmens_ns_df$em_means
+```
+
+
+
 
 Let's have a look at our contrast table.
 
@@ -747,6 +759,16 @@ wave_freq_df_nest %>%
             ncol = 3, 
             labels = "AUTO")
 ```
+
+```{r}
+my_cum_occu_wave_plot_func
+```
+
+
+```{r}
+wave_freq_df_nest$data
+```
+
 
 ```{r eval = params$output_results}
 ######### Save your plot ##########
