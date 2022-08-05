@@ -507,13 +507,12 @@ emmens_ns_df %>%
 
 ### Export results
 
------>>>>> you stay here. 17.07.2022. TODO: fix path to export and name of variables to display in the next code chunks
 
 Here we export the test contrast from the wave kinetics parameters: `r wave_parameters[1:2]` and `r wave_parameters[3]` and can be found under the directory: `r output_results_dir$kinetics`
 
 
 
- Export Wave kinetics parameters
+ Exporting here Wave kinetics parameters
 
 ```{r eval = params$output_results}
 emmens_ns_df %>% 
@@ -533,7 +532,7 @@ emmens_ns_df %>%
 
 
 
-Export Frequency parameters 
+Exporting here Frequency parameters 
 
 
 ```{r eval = params$output_results}
@@ -555,133 +554,202 @@ emmens_ns_df %>%
 
 ## Superplots
 
-### Kinetics parameters
+create a new column with the superplots
+
+
+### wave kinetics
 
 
 
-```{r, results='show', include=TRUE, collapse = TRUE, fig.width=12, fig.asp = 0.3, out.width='200%'}
+```{r}
 
-nested_df <- nested_df %>% 
-  filter(!str_detect(variables, "log|Freq")) %>% # fix var set names to avoid doing this every time
-  mutate(superplots = map2(by_cell_data,  variables, ~ {.x %>% 
-      filter(Condition != "Control") %>%
-      
-      # plot_arrange_by_condition_func(var ="value",
-      #                            my_conditions = c("Fab", "cAMP"),
-      #                            # my_conditions = c("Fab","cAMP"),
-      #                            type_of_plot = "superplot",
-      #                            faceted_by_1 = "Treatment + Condition",
-      #                            base_violin = "cells",
-      #                            dot_layer = "none",
-      #                            animal_layer = T,
-      #                            line_size = 1.5,
-      #                            # wave_alpha = 0.4,
-      #                            # wave_size = 2.5,
-      #                            cell_size = 2.5,
-      #                            cell_alpha = 0.4,
-      #                            animal_size = 7,
-      #                            animal_alpha = 0.7,
-      #                            y_limits = 13,
-      #                            base_font_size = 36) +
-      
-      superplot_func(yaxe = "value",
-                     faceted_by_1 = "Treatment",
-                     base_violin = "cells",
-                     dot_layer = "cells",
-                     animal_layer = T,
-                     wave_alpha = 0.1,
-                     wave_size = 1,
-                     cell_size = 2,
-                     cell_alpha = 0.2,
-                     jitter_width_cell = 4,
-                     animal_size = 5,
-                     animal_alpha = 0.6,
-                     line_size = 1,
-                     base_font_size = 20, #this is the original valu
-                     # base_font_size = 12,
-                     trim = FALSE,
-                     scaled_to = "width",
-                     adjusted = 1.5) +
-      ggplot2::ylab(.y) +
-      geom_hpline(stat = "summary", aes(color = Animal)) # add this line if you want to add average vertical line
-  })) 
+my_limits = list(c(0,4), c(30, 190), c(50, 160), c(0,2.5))
 
-
-nested_df %>% 
-  pluck("superplots") %>% 
-  plot_grid(plotlist = .,
-            ncol = 3)
-  
+nested_df <- nested_df %>%
+  ungroup() %>%
+  mutate(limits = my_limits) %>% 
+  # filter(variables != "Freq_waves_Hz") %>% 
+  mutate(superplots = pmap(list(by_cell_data,
+                                variables,
+                                limits),
+                           function(.x, .y, .z){
+                             # list(data, names, limits)
+                             .x %>%
+                               plot_arrange_by_condition_func(var = "value",
+                                                              my_conditions = c("Fab", "cAMP"),
+                                                              # my_conditions = c("Fab","cAMP"),
+                                                              type_of_plot = "superplot",
+                                                              faceted_by_1 = "Treatment + Condition",
+                                                              base_violin = "cells",
+                                                              dot_layer = "none",
+                                                              animal_layer = T,
+                                                              line_size = 1.5,
+                                                              # wave_alpha = 0.4,
+                                                              # wave_size = 2.5,
+                                                              cell_size = 2.5,
+                                                              cell_alpha = 0.4,
+                                                              animal_size = 7,
+                                                              animal_alpha = 0.7,
+                                                              # y_limits = 13,
+                                                              y_limits =.z,
+                                                              base_font_size = 36)%>%
+                               map(function(plot){ plot + ylab(.y)}) %>%
+                               plot_grid(ncol = 2,
+                                         plotlist = .,
+                                         scale = 0.8,
+                                         align = "vh",
+                                         axis = "rlbt")
+                             
+                           })) 
 
 ```
+
+
+
+```{r, results='show', include=TRUE, collapse = TRUE, fig.width=24, fig.asp = 1.3, out.width='200%'}
+nested_df %>% 
+   filter(variables != "Freq_waves_Hz") %>%
+  pull(superplots) %>% 
+  plot_grid(ncol = 1,
+            plotlist = .,
+            align = "vh",
+            axis = "rlbt")
+```
+
+
+
+```{r eval = params$output_results}
+
+    ########## Save your plot ########## 
+nested_df %>% 
+   filter(variables != "Freq_waves_Hz") %>%
+  pull(superplots) %>% 
+  walk2(.x = ., 
+        .y = wave_parameters[1:3], 
+        ~ ggsave(plot = .x, filename = here(output_figs_dir$kinetics,
+                                            paste(format(Sys.Date(),
+                                                         "%y%m%d"),
+                                                  paste0(.y,
+                                                         ".pdf"),
+                                                  sep = "_")),
+                 device = "pdf",
+                 units = "cm",
+                 width =54,
+                 height = 24))
+
+```
+
+
 
 ### Frequency parameters
 
-```{r, eval=params$output_results, results='show', include=TRUE, collapse = TRUE, fig.width=12, fig.asp = 0.3, out.width='200%'}
-
-nested_df %>% 
-  filter(!str_detect(variables, "log|Freq")) %>% # fix var set names to avoid doing this every time
-  mutate(superplots = map2(by_cell_data,  variables, ~ {.x %>% 
-      filter(Condition != "Control") %>%
-      
-      # plot_arrange_by_condition_func(var ="value",
-      #                            my_conditions = c("Fab", "cAMP"),
-      #                            # my_conditions = c("Fab","cAMP"),
-      #                            type_of_plot = "superplot",
-      #                            faceted_by_1 = "Treatment + Condition",
-      #                            base_violin = "cells",
-      #                            dot_layer = "none",
-      #                            animal_layer = T,
-      #                            line_size = 1.5,
-      #                            # wave_alpha = 0.4,
-      #                            # wave_size = 2.5,
-      #                            cell_size = 2.5,
-      #                            cell_alpha = 0.4,
-      #                            animal_size = 7,
-      #                            animal_alpha = 0.7,
-      #                            y_limits = 13,
-      #                            base_font_size = 36) +
-      
-      superplot_func(yaxe = "value",
-                     faceted_by_1 = "Treatment",
-                     base_violin = "cells",
-                     dot_layer = "cells",
-                     animal_layer = T,
-                     wave_alpha = 0.1,
-                     wave_size = 1,
-                     cell_size = 2,
-                     cell_alpha = 0.2,
-                     jitter_width_cell = 4,
-                     animal_size = 5,
-                     animal_alpha = 0.6,
-                     line_size = 1,
-                     base_font_size = 20, #this is the original valu
-                     # base_font_size = 12,
-                     trim = FALSE,
-                     scaled_to = "width",
-                     adjusted = 1.5) +
-      ggplot2::ylab(.y) +
-      geom_hpline(stat = "summary", aes(color = Animal)) # add this line if you want to add average vertical line
-  })) %>% 
-  pluck("superplots") %>% 
-  # plot_grid(plotlist = .,
-  #           ncol = 2) %>% 
-    ########## Save your plot ########## 
-walk2(c("normalized_wave_freq_all"),
-      ~ ggsave(plot = .x, filename = here(output_figs_dir$frequency,
-                                           paste(format(Sys.Date(),
-                                                        "%y%m%d"),
-                                                 paste0(.y,
-                                                        ".pdf"),
-                                                 sep = "_")),
-               device = "pdf",
-               units = "cm",
-               width = 24,
-               height = 14))
 
 
+```{r, eval=params$output_results, results='show', include=TRUE, collapse = TRUE, fig.width=16, fig.asp = 0.6, out.width='200%'}
+
+nested_df %>%
+  filter(variables == "Freq_waves_Hz") %>%
+  mutate(by_cell_data = map(by_cell_data, ~ .x %>% 
+                              normalize_sr_data_func)) %>% # normalize the frequency
+  # pull(by_cell_data)
+  mutate(superplots = map2(by_cell_data,
+                                variables,
+                           function(.x, .y ){
+                             # list(data, names, limits)
+                             .x %>%
+                               filter(Var_type == "Normalized") %>% # filter the normalized values
+                               plot_arrange_by_condition_func(var = "value",
+                                                              my_conditions = c("Fab", "cAMP"),
+                                                              # my_conditions = c("Fab","cAMP"),
+                                                              type_of_plot = "superplot",
+                                                              faceted_by_1 = "Treatment + Condition",
+                                                              base_violin = "cells",
+                                                              dot_layer = "none",
+                                                              animal_layer = T,
+                                                              line_size = 1.5,
+                                                              # wave_alpha = 0.4,
+                                                              # wave_size = 2.5,
+                                                              cell_size = 2.5,
+                                                              cell_alpha = 0.4,
+                                                              animal_size = 7,
+                                                              animal_alpha = 0.7,
+                                                              y_limits = 13,
+                                                              # y_limits =.z,
+                                                              base_font_size = 36)%>%
+                               map(function(plot){ plot + ylab(.y)}) %>%
+                               plot_grid(ncol = 2,
+                                         plotlist = .,
+                                         scale = 0.8,
+                                         align = "vh",
+                                         axis = "rlbt")
+                             
+                           })) %>% 
+
+  
+  pluck("superplots", 1) 
 
 ```
+
+```{r eval = params$output_results}
+
+    ########## Save your plot ########## 
+nested_df %>%
+  filter(variables == "Freq_waves_Hz") %>%
+  mutate(by_cell_data = map(by_cell_data, ~ .x %>% 
+                              normalize_sr_data_func)) %>% # normalize the frequency
+  # pull(by_cell_data)
+  mutate(superplots = map2(by_cell_data,
+                                variables,
+                           function(.x, .y ){
+                             # list(data, names, limits)
+                             .x %>%
+                               filter(Var_type == "Normalized") %>% # filter the normalized values
+                               plot_arrange_by_condition_func(var = "value",
+                                                              my_conditions = c("Fab", "cAMP"),
+                                                              # my_conditions = c("Fab","cAMP"),
+                                                              type_of_plot = "superplot",
+                                                              faceted_by_1 = "Treatment + Condition",
+                                                              base_violin = "cells",
+                                                              dot_layer = "none",
+                                                              animal_layer = T,
+                                                              line_size = 1.5,
+                                                              # wave_alpha = 0.4,
+                                                              # wave_size = 2.5,
+                                                              cell_size = 2.5,
+                                                              cell_alpha = 0.4,
+                                                              animal_size = 7,
+                                                              animal_alpha = 0.7,
+                                                              y_limits = 13,
+                                                              # y_limits =.z,
+                                                              base_font_size = 36)%>%
+                               map(function(plot){ plot + ylab(.y)}) %>%
+                               plot_grid(ncol = 2,
+                                         plotlist = .,
+                                         scale = 0.8,
+                                         align = "vh",
+                                         axis = "rlbt")
+                             
+                           })) %>% 
+  pull(superplots) %>% 
+  walk2(.x = ., 
+        .y = wave_parameters[4], 
+        ~ ggsave(plot = .x, filename = here(output_figs_dir$frequency,
+                                            paste(format(Sys.Date(),
+                                                         "%y%m%d"),
+                                                  paste0(.y,
+                                                         ".pdf"),
+                                                  sep = "_")),
+                 device = "pdf",
+                 units = "cm",
+                 width = 54,
+                 height = 24))
+
+```
+
+
+
+
+
 
 
 
