@@ -51,6 +51,34 @@ options("scipen" = 999, "digits" = 4)
 ```
 
 
+```{r}
+############# Create folder and names structure #############
+
+# name of parameters for analysis
+parameters <- list("SR_calcium") %>% 
+                                purrr::set_names()
+
+
+# name of output directories for each parameter
+output_results_dir <- map(parameters, ~(sprintf(here("results",
+                               "perme_cells",
+                               "%s"), .x)))
+
+# name of figure directories for each parameter
+output_figs_dir <- map(parameters, ~(sprintf(here("figures",
+                                                  "perme_cells",
+                                                  "%s"), .x)))
+
+
+```
+
+```{r, eval=params$output_results}
+
+# Create all new directories for output results and figures
+c(output_results_dir, output_figs_dir) %>% 
+  map(~dir_create(path = .x))
+
+```
 # define variable namespace for ploting and directories
 
 ```{r}
@@ -116,11 +144,13 @@ by_cell_df %>%
   glimpse()
 ```
 
-# 4. Load Miguel data alone and join with your aggregated-by-cell dataset
+# 4. Load Miguel data alone (already averaged by cell) and join with your aggregated-by-cell dataset
 
-## load Miguel's data
+
 
 ```{r}
+## load Miguel's data
+
 Migule_SR_df <- read_csv(here("datasets",
                               "perme_cells",
                               "SR_calcium",
@@ -145,7 +175,7 @@ pooled_sr_df %>%
 
 ```
 
-# Create the permeabilization variable again for later be introduced in the mix model
+# Create the permeabilization variable again for later be used in the mix model
 
 ```{r}
 
@@ -153,54 +183,21 @@ pooled_sr_df <- pooled_sr_df %>%
   # mutate(Permeabilization = str_sub(Experiment, start = 1, end = 2))
   mutate(permeabilization = factor(paste(Animal_No, str_sub(Experiment, start = 1, end = 2), sep = "_"))) 
 
+pooled_sr_df %>% 
+  distinct(Animal, Condition)
 ```
 
-
-### checking the files for repository (take only your dataset) ->  done 
-
-```{r}
-by_cell_df %>% 
-  names
-```
-
-
-```{r}
-by_cell_df %>% 
-  # names
-  # distinct(filename) %>% 
-  distinct(Date) %>%
-  arrange(desc(.))
-```
-
-```{r, eval=FALSE}
-by_cell_df %>%
-  distinct(Date) %>%
-  arrange(desc(.)) %>%
-  mutate(Date = as.character(Date)) %>%
-  mutate(Date = str_sub(Date, start = -8) %>% str_replace_all(pattern = "-", "")) %>%
-  write_csv(file = "SR_calcium_dates.csv")
-```
-
-# Create the permeabilization variable again for later be introduced in the mix model
-
-```{r}
-
-pooled_sr_df <- pooled_sr_df %>% 
-  # mutate(Permeabilization = str_sub(Experiment, start = 1, end = 2))
-  mutate(permeabilization = factor(paste(Animal_No, str_sub(Experiment, start = 1, end = 2), sep = "_"))) 
-
-```
 
 
 # 6.1 Hirarchical test
 
 ## Nest the df to asses asumption:
 
-- Independedncy (done)
+- Independence (done)
 - No outliers 
 - Normality -> ok
 - qq plot (only visual)
-- Homogeneity of variance: this is not assumed, so we apply simple transformation to the mean and center the dat to check if impreve model performance.
+- Homogeneity of variance: this is not assumed, so we apply simple transformation to the mean and center the data to check if improve model performance 
 
 
  
@@ -226,29 +223,11 @@ nested_df <- pooled_sr_df %>%
   filter(Parameters == "SR_Baseline") %>% 
   pivot_longer(cols = ends_with("data"), names_to = "dataset_type", values_to = "data")
 
-# nested_df %>%
-#   # pull(log10_data)
-#   pull(data)
-  # pull(centered_data)
+
+nested_df
 ```
 
-
-## Create helper function to apply models
- 
-```{r}
-
-apply_model_func <- function(dataset,
-                             my_var = "data",
-                             my_model){
-  my_var <- sym(my_var)
-
-  dataset %>%
-    mutate("{{my_model}}" := purrr::map(!!my_var, my_model))# %>%
-
-}
-
-
-```
+## create Levene's test for homogeneity of variance test across groups
  
 ```{r}
 
@@ -265,52 +244,55 @@ levn_test <- function(my_dataset){
 ```{r}
 
 nested_processed <- nested_df %>% 
-  describe_nested_df("data") #%>% 
+  describe_nested_df("data") %>% # create descriptive statistics, outliers and qqplots
+  apply_model_func(my_model = levn_test) %>% # apply homo_varianc leven test
+  mutate(levn_test = map(levn_test, ~ .x %>% tidy())) # make the leven test tidy
   
 nested_processed
 
 ```
 
-Q-Q plots
+## Q-Q plots
 
 
 ```{r, results='show', include=TRUE, collapse = TRUE, fig.width=12, fig.asp = 1, out.width='100%'}
 nested_processed %>% 
   ungroup() %>% 
   filter(dataset_type == "raw_data") %>% 
+  mutate(qq_plot = map(qq_plot, ~.x +  
+                         ggplot2::scale_colour_manual(values = c("#666666", 
+                                                                 "#CC0000")) +
+                         ggplot2::scale_fill_manual(values = c("#666666", 
+                                                                 "#CC0000")) +
+                         pptx_presentation_theme_func(base_size = 12))) %>%
   pull(qq_plot) %>% 
   plot_grid(plotlist = ., ncol = 1)
 ```
 
-Outliers
+## Check for Outliers
 
 ```{r}
  nested_processed %>% 
-  filter(Parameters == "SR_Baseline") %>%
-  
+  filter(dataset_type == "raw_data") %>% 
     pluck("outliers")
     # pluck("described")
     # pluck("qq_plot")
 ```
 
 
-Homogeneity of Variance 
+## check for Homogeneity of Variance 
 
-NOTE: for get about for the moment.
+
 
 ```{r}
- nested_processed %>% 
-  filter(Parameters == "SR_Baseline") %>%
-  
+ nested_processed  %>% 
+  filter(dataset_type == "raw_data") %>% 
     pluck("levn_test")
 ```
 
 
-```{r}
-nested_processed
-```
 
-## check again descriptive stats
+## check descriptive stats
 
 ```{r}
 nested_processed %>% 
@@ -328,6 +310,26 @@ nested_processed %>%
    #                     "descriptive_summary_stats.csv",
    #                     sep = "_")))
 ```
+
+```{r eval = params$output_results}
+
+nested_processed %>% 
+  mutate(described = map2(Parameters, described, ~ .y %>% 
+                         mutate(Parameters = .x))) %>% 
+  filter(Parameters == "SR_Baseline") %>% 
+  pluck("described", 1) %>% 
+  ########## Save the output #########
+   write_csv(here(output_results_dir,
+                 paste(format(Sys.time(),
+                              '%Y%m%d'),
+                       parameters,
+                       "descriptive_summary_stats.csv",
+                       sep = "_")))
+
+
+```
+
+
 
 # 7. Make anova and mix model(s)
  
@@ -421,4 +423,37 @@ model_performance %>%
   # filter(model_name == "mixm_1")
   # filter(model_name == "mixm_3")
   
+```
+
+
+
+
+
+
+
+
+
+### checking the files for repository (take only your dataset) ->  done 
+
+```{r}
+by_cell_df %>% 
+  names
+```
+
+
+```{r}
+by_cell_df %>% 
+  # names
+  # distinct(filename) %>% 
+  distinct(Date) %>%
+  arrange(desc(.))
+```
+
+```{r, eval=FALSE}
+by_cell_df %>%
+  distinct(Date) %>%
+  arrange(desc(.)) %>%
+  mutate(Date = as.character(Date)) %>%
+  mutate(Date = str_sub(Date, start = -8) %>% str_replace_all(pattern = "-", "")) %>%
+  write_csv(file = "SR_calcium_dates.csv")
 ```
