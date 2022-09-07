@@ -41,7 +41,8 @@ pacman::p_load(AnlysisOfWaves, # custom functions for analysis and loading of ad
                cowplot,
                dplyr, tidyr, purrr, stringr, forcats, # io of tabular files,
                # cowplot,
-               # purrr, dplyr, tidyr, stringr, kableExtra, # wrangling data
+               # purrr, dplyr, tidyr, stringr, 
+               kableExtra, # wrangling data
                # ggplot2, ungeviz, # piloting
                lmerTest, broom.mixed, emmeans) # tools for mixed effect model computation and multiple comparison
 
@@ -69,7 +70,7 @@ output_figs_dir <- map(parameters, ~(sprintf(here("figures",
                                                   "perme_cells",
                                                   "%s"), .x)))
 
-
+table_output_font_size = 10
 ```
 
 ```{r, eval=params$output_results}
@@ -79,7 +80,7 @@ c(output_results_dir, output_figs_dir) %>%
   map(~dir_create(path = .x))
 
 ```
-# define variable namespace for ploting and directories
+#### define variable namespace for ploting and directories
 
 ```{r}
 
@@ -116,7 +117,7 @@ raw_sr_data %>%
 # levels(raw_sr_data$Animal)
 ```
 
-# cleaning raw dataset
+#### cleaning raw dataset
 
 ```{r}
 raw_sr_data <- raw_sr_data %>% 
@@ -131,7 +132,7 @@ raw_sr_data <- raw_sr_data %>%
 ```
 
 
-# aggregate by cell
+#### aggregate by cell
 
 
 
@@ -144,7 +145,7 @@ by_cell_df %>%
   glimpse()
 ```
 
-# 4. Load Miguel data alone (already averaged by cell) and join with your aggregated-by-cell dataset
+# Load Miguel data alone (already averaged by cell) and join with your aggregated-by-cell dataset
 
 
 
@@ -174,8 +175,18 @@ pooled_sr_df %>%
   glimpse()
 
 ```
+lest have a  look at the combined data
 
-# Create the permeabilization variable again for later be used in the mix model
+```{r results='show', include=TRUE}
+pooled_sr_df %>% 
+  kable %>%
+  kable_styling(font_size = table_output_font_size) %>% 
+  # collapse_rows(columns = c(1:5)) %>% 
+  scroll_box(width = "100%", height = "400px")
+```
+
+
+ Create the permeabilization variable again for later be used in the mix model
 
 ```{r}
 
@@ -189,7 +200,7 @@ pooled_sr_df %>%
 
 
 
-# 6.1 Hirarchical test
+# Hirarchical test
 
 ## Nest the df to asses asumption:
 
@@ -227,7 +238,7 @@ nested_df <- pooled_sr_df %>%
 nested_df
 ```
 
-## create Levene's test for homogeneity of variance test across groups
+### create Levene's test for homogeneity of variance test across groups
  
 ```{r}
 
@@ -239,7 +250,7 @@ levn_test <- function(my_dataset){
 ```
  
 
-# 6.2 Describe and transform nested data: exploratory analysis
+# Describe and transform nested data: exploratory analysis
  
 ```{r}
 
@@ -255,7 +266,7 @@ nested_processed
 ## Q-Q plots
 
 
-```{r, results='show', include=TRUE, collapse = TRUE, fig.width=12, fig.asp = 1, out.width='100%'}
+```{r, results='show', include=TRUE, collapse = TRUE, fig.width=12, fig.asp = 0.5, out.width='100%'}
 nested_processed %>% 
   ungroup() %>% 
   filter(dataset_type == "raw_data") %>% 
@@ -271,10 +282,23 @@ nested_processed %>%
 
 ## Check for Outliers
 
-```{r}
+```{r results='show', include=TRUE}
+
+# {r results='show', include=TRUE}
+# pooled_sr_df %>% 
+#   kable %>%
+#   kable_styling(font_size = table_output_font_size) %>% 
+#   collapse_rows(columns = c(1:5)) %>% 
+#   scroll_box(width = "100%", height = "400px")
+
+
  nested_processed %>% 
   filter(dataset_type == "raw_data") %>% 
-    pluck("outliers")
+   pluck("outliers", 1) %>% 
+   kable %>%
+   kable_styling(font_size = table_output_font_size) %>% 
+   # collapse_rows(columns = c(1:5)) %>% 
+   scroll_box(width = "100%", height = "200px")
     # pluck("described")
     # pluck("qq_plot")
 ```
@@ -284,20 +308,28 @@ nested_processed %>%
 
 
 
-```{r}
- nested_processed  %>% 
+```{r results='show', include=TRUE}
+nested_processed  %>% 
   filter(dataset_type == "raw_data") %>% 
-    pluck("levn_test")
+  pluck("levn_test", 1)  %>% 
+  kable %>%
+  kable_styling(font_size = table_output_font_size) %>% 
+  # collapse_rows(columns = c(1:5)) %>% 
+  scroll_box(width = "100%", height = "100px")
 ```
 
 
 
 ## check descriptive stats
 
-```{r}
+```{r results='show', include=TRUE}
 nested_processed %>% 
   filter(Parameters == "SR_Baseline") %>% 
-  pluck("described", 1) #%>% 
+  pluck("described", 1) %>% 
+  kable %>%
+  kable_styling(font_size = table_output_font_size) %>% 
+  # collapse_rows(columns = c(1:5)) %>% 
+  scroll_box(width = "100%", height = "300px")
   # filter(!Condition == "Vehicle")
 
 ########## Save the output #########
@@ -331,9 +363,11 @@ nested_processed %>%
 
 
 
-# 7. Make anova and mix model(s)
+# Make anova and mix model(s)
+
+these are the tested model tested
  
-```{r}
+```{r include=TRUE, echo=TRUE}
 anova1 <- function(my_dataset){
   # rstatix::anova_test(value ~ Animal + Condition, data = my_dataset)
   # car::Anova(lm(value ~ Animal + Condition, data = my_dataset), type = "III")
@@ -370,6 +404,11 @@ mixm_3 <- function(my_dataset){
                  REML = FALSE)
 }
 
+
+```
+
+```{r}
+
 modeled_data <- nested_processed %>% 
   filter(Parameters == "SR_Baseline") %>% # Select only the baseline
   apply_model_func(my_model = anova1) %>%
@@ -389,12 +428,10 @@ modeled_data %>%
   pull(est_mmeans) %>% 
   pluck(1) %>% 
   summary
-
 ```
 
 
-
-#7.1 Models performance
+## Checking models performance
  
 ```{r}
 model_performance <- modeled_data %>% 
@@ -411,23 +448,17 @@ model_performance <- modeled_data %>%
                                  broom::tidy())))# %>% 
   # pluck("glance", 3)
   # pluck("p_val")
-  model_performance
+
 ```
 
-```{r}
+```{r results='show', include=TRUE}
 model_performance %>% 
-  filter(model_name == "anova1") %>% 
-  filter(dataset_type == "raw_data") %>% 
-  pull(augment)
-  # pull(augment)
-  # filter(model_name == "mixm_1")
-  # filter(model_name == "mixm_3")
-  
+  select(where(is.character) | where(is.double)) %>% 
+  kable %>%
+  kable_styling(font_size = table_output_font_size) %>% 
+  # collapse_rows(columns = c(1:5)) %>% 
+  scroll_box(width = "100%", height = "300px")
 ```
-
-
-
-
 
 
 
@@ -457,3 +488,10 @@ by_cell_df %>%
   mutate(Date = str_sub(Date, start = -8) %>% str_replace_all(pattern = "-", "")) %>%
   write_csv(file = "SR_calcium_dates.csv")
 ```
+
+
+
+# Ploting 
+
+## Superplots
+
