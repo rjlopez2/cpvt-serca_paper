@@ -1,3 +1,4 @@
+.Rprofile
 .Rproj.user
 .Rhistory
 .RData
@@ -28,3 +29,4 @@ data/data.csv
 .wget-hsts
 .config/
 .gitconfig
+renv/
