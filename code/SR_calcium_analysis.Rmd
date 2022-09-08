@@ -43,7 +43,8 @@ pacman::p_load(AnlysisOfWaves, # custom functions for analysis and loading of ad
                # cowplot,
                # purrr, dplyr, tidyr, stringr, 
                kableExtra, # wrangling data
-               # ggplot2, ungeviz, # piloting
+               ggplot2, 
+               # ungeviz, # piloting
                lmerTest, broom.mixed, emmeans) # tools for mixed effect model computation and multiple comparison
 
 options("scipen" = 999, "digits" = 4)
@@ -175,6 +176,34 @@ pooled_sr_df %>%
   glimpse()
 
 ```
+
+### checking the files for repository (take only your dataset) ->  done 
+
+```{r eval=FALSE}
+by_cell_df %>% 
+  names
+```
+
+
+```{r eval=FALSE}
+by_cell_df %>% 
+  # names
+  # distinct(filename) %>% 
+  distinct(Date) %>%
+  arrange(desc(.))
+```
+
+```{r, eval=FALSE}
+by_cell_df %>%
+  distinct(Date) %>%
+  arrange(desc(.)) %>%
+  mutate(Date = as.character(Date)) %>%
+  mutate(Date = str_sub(Date, start = -8) %>% str_replace_all(pattern = "-", "")) %>%
+  write_csv(file = "SR_calcium_dates.csv")
+```
+
+
+
 lest have a  look at the combined data
 
 ```{r results='show', include=TRUE}
@@ -407,9 +436,11 @@ mixm_3 <- function(my_dataset){
 
 ```
 
-```{r}
+We apply the model and check the output. Now in our grouped nested df is contained the model objects.
 
-modeled_data <- nested_processed %>% 
+```{r }
+
+model_raw_nsdf <- nested_processed %>% 
   filter(Parameters == "SR_Baseline") %>% # Select only the baseline
   apply_model_func(my_model = anova1) %>%
   # apply_model_func(my_model = anova2) %>% # exclude model with interactions.
@@ -418,80 +449,178 @@ modeled_data <- nested_processed %>%
   apply_model_func(my_model = mixm_3) %>% 
   pivot_longer(cols = contains(c("anova", "mix")), 
                names_to = "model_name", 
-               values_to = "model_obj") %>% 
-  mutate(est_mmeans = map(model_obj, ~ emmeans(.x, 
-                                               specs = pairwise ~ Animal + Condition,  adjust = "BH")))
+               values_to = "model") #%>% 
+  # mutate(est_mmeans = map(model, ~ emmeans(.x, 
+  #                                              specs = pairwise ~ Animal + Condition,  adjust = "BH")))
   
 
-modeled_data %>% 
-  head(1) %>% 
-  pull(est_mmeans) %>% 
-  pluck(1) %>% 
-  summary
+# modeled_data %>% 
+#   head(1) %>% 
+#   pull(est_mmeans) %>% 
+#   pluck(1) %>% 
+#   summary
+
+model_raw_nsdf
 ```
 
 
 ## Checking models performance
  
-```{r}
-model_performance <- modeled_data %>% 
-  mutate(glance = map(model_obj, ~ broom.mixed::glance(.x))) %>% # NOTE: use {broom.mixed} when working with mixed models, otherwise throw error. 
-  mutate(tidy = map(model_obj, ~ broom.mixed::tidy(.x))) %>% # NOTE: use {broom.mixed} when working with mixed models, otherwise throw error. 
-  mutate(augment = map(model_obj, ~ broom.mixed::augment(.x))) %>% # NOTE: use {broom.mixed} when working with mixed models, otherwise throw error. 
-  mutate(logLik = (glance %>% map_dbl(~ .x$logLik * -2)),
-         AIC = (glance %>% map_dbl(~ .x$AIC)),
-         BIC = (glance %>% map_dbl(~ .x$BIC)),
-         # p_val = (glance %>% map_dbl(~ .x$p.value)),
-         # sigma = (glance %>% map_dbl(~ .x$sigma))) %>% 
-         p_val = map(model_obj,  ~(.x %>%
-                                 car::Anova(type = "III") %>%
-                                 broom::tidy())))# %>% 
-  # pluck("glance", 3)
-  # pluck("p_val")
+Then, we extract information and inspect side-by-side model performance.
 
+```{r}
+model_results_nsdf <- model_raw_nsdf %>%
+# model_raw_nsdf %>% 
+  # filter(dataset_type == "raw_data") %>% 
+  # select(data) %>% 
+  extract_model_info_func() %>% 
+  plot_residuals_func()
+
+model_results_nsdf
+```
+```{r}
+model_results_nsdf
+```
+```{r results='show', include=TRUE, collapse = TRUE, fig.width=22, fig.asp = 0.5, out.width='200%'}
+
+model_results_nsdf$dataset_type %>% 
+  unique() %>% 
+  map(~(model_results_nsdf %>% 
+          # group_by(dataset_type) %>% 
+          filter(dataset_type == .x ) %>%
+          pull(res_vs_fit_plot) %>% 
+          plot_grid(plotlist = ., 
+                    ncol = 3, 
+                    labels = paste0("dataset = ",.x), 
+                    label_size = 16, label_x = 0.3))) %>% 
+  plot_grid(plotlist = ., ncol = 1)
+  
 ```
 
+And here we can quickly look at the model performance
+
 ```{r results='show', include=TRUE}
-model_performance %>% 
+model_results_nsdf %>% 
   select(where(is.character) | where(is.double)) %>% 
   kable %>%
   kable_styling(font_size = table_output_font_size) %>% 
   # collapse_rows(columns = c(1:5)) %>% 
-  scroll_box(width = "100%", height = "300px")
+  scroll_box(width = "100%", height = "400px")
 ```
 
+# Contrasts and estimated marginal means 
+
+### Make Contrast
 
 
 
+we first create the marginal means object and then we design a matrix to make the desired comparisons. Here we want to compare genotypes differences among control and or drug application under different drugs, so we design the matrix accordingly
 
-### checking the files for repository (take only your dataset) ->  done 
-
-```{r}
-by_cell_df %>% 
-  names
-```
 
 
 ```{r}
-by_cell_df %>% 
-  # names
-  # distinct(filename) %>% 
-  distinct(Date) %>%
-  arrange(desc(.))
+model_results_nsdf$data[[1]]
+
 ```
 
-```{r, eval=FALSE}
-by_cell_df %>%
-  distinct(Date) %>%
-  arrange(desc(.)) %>%
-  mutate(Date = as.character(Date)) %>%
-  mutate(Date = str_sub(Date, start = -8) %>% str_replace_all(pattern = "-", "")) %>%
-  write_csv(file = "SR_calcium_dates.csv")
+
+```{r}
+
+
+emmens_ns_df <- model_raw_nsdf %>%
+  # model_raw_nsdf %>%
+  # filter(str_detect(model_name, "no")) %>% 
+  mutate(em_means = map2(data, model, ~ emmeans(object =  .y, 
+                                                        specs =  ~ Animal * Condition, 
+                                                        data = .x)),
+         estimates = map(em_means, ~(.x %>%
+                                       as_tibble %>%
+                                       drop_na %>%
+                                       mutate(across(where(is.double),
+                                                     ~ round(.x, digits =2)))))) 
+# we explore the size of the coeficient matrix
+emmens_ns_df %>% 
+  mutate(coef_grid = map(em_means, ~coef(pairs(.x)))) %>% 
+  select(model_name, coef_grid) %>% 
+  pluck("coef_grid", 1)
+```
+and here we designe our final matrix for comparison
+
+```{r}
+contrast_matrix <- list("WT_cAMP vs WT_Fab" = 
+                          c(0, 0, 1, 0, 0, 0) - c(0, 0, 0, 0, 1, 0),
+                          
+                        "CPVT_cAMP vs CPVT_Fab" = 
+                          c(0, 0, 1, 0, 0, 0) - c(0, 0, 0, 0, 1, 0))
+
+
+contrast_matrix
+```
+store the comparisons aka contrasts
+
+```{r}
+emmens_ns_df <- emmens_ns_df %>% 
+  mutate(contrast = map(em_means, ~(contrast(object = .x, 
+                                             # method = "pairwise",
+                                             method = contrast_matrix, # error when using custom matrix innested model with the "/" symbol. check above in the definition of teh model
+                                             adjust = "BH") %>% 
+                                      broom::tidy() %>%
+                                      rstatix::add_significance(p.col = "adj.p.value", # adding p-significance symbols
+                                                                output.col = "significance") %>%
+                                      mutate(across(where(is.double),
+                                                    ~ round(.x, digits =2)))
+                                    
+  ))) 
+  
+emmens_ns_df
 ```
 
+Let's have a look at our contrast table in the interaction model.
+
+```{r results='show', include=TRUE}
+emmens_ns_df %>% 
+  ungroup() %>% 
+  # filter(!str_detect(model_name, "nointer")) %>% #take only the model with interaction
+  select(Parameters, dataset_type, contrast, model_name) %>% 
+  unnest(cols = c(contrast)) %>%
+  mutate(group1 = word(contrast, 1),
+         group2 = word(contrast, 3)) %>% 
+  # pivot_longer(cols = starts_with("group"), names_to = "groups", values_to = "Condition") %>%
+  # mutate(Animal = str_extract(Condition, pattern = "WT|CPVT"),
+  #        Condition = str_extract(Condition, pattern = "Control|ISO")) %>%
+  # pivot_wider(values_from = Animal, names_from = groups) %>%
+  relocate(starts_with(c("model", "group")), .after = term) %>%
+  select(-contrast, -null.value) %>%
+  kable %>%
+  kable_styling(font_size = table_output_font_size)
+
+```
+
+
+### Export results
+
+
+Here we export the test contrast from the wave kinetics parameters: `r SR_parameters[3]` and can be found under the directory: `r output_results_dir$SR_calcium`
+
+
+```{r eval = params$output_results}
+emmens_ns_df %>% 
+  filter(str_detect(dataset_type, "raw_data")) %>% # take stimations from raw data
+  filter(str_detect(model_name, "mixm_1")) %>% # take the simplest mix model
+  pull(contrast) %>% 
+  # length()
+  walk2(.x = ., 
+        .y = SR_parameters[3],
+        ~write_csv(x = .x, file = here(output_results_dir$SR_calcium, 
+                                      paste(format(Sys.time(),
+                                                   '%Y%m%d'), 
+                                            .y, 
+                                            "contrast.csv", sep = "_"))))
+  
+
+```
 
 
 # Ploting 
 
 ## Superplots
-
