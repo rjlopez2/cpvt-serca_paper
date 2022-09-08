@@ -673,10 +673,51 @@ pmap(list(nested_df$data,
 
 export plots
 
-plots can be found in this directory `r `
-```{r}
+plots can be found in this directory `r output_figs_dir$SR_calcium`
+
+```{r eval = params$output_results}
+(nested_df$data[[1]] %>% 
+  filter(Condition != "Vehicle") %>% 
+         filter(Condition != "Vehicle") %>%
+         superplot_func(yaxe = "value",
+                        # xaxe = "Condition",
+                        faceted_by_1 = "Condition",
+                        # my_plot_fun = superplot_func, 
+                        base_violin = "cells",
+                        dot_layer = "cells",
+                        animal_layer = T,
+                        line_size = 1.5,
+                        animal_size = 7,
+                        cell_size = 2.5,
+                        cell_alpha = 0.4,
+                        animal_alpha = 0.7,
+                        base_font_size = 36) +
+         
+         stat_summary(
+           aes(color = Animal),
+           size = 2,
+           geom = "hpline",
+           fun.y = "mean",
+           # col = "black",
+           size = 2,
+           alpha = .5,
+         ) + 
+  labs(y = nested_df$Parameters[[1]])) %>% 
+  ggsave(plot = ., filename = here(output_figs_dir$SR_calcium,
+                                   paste(format(Sys.Date(),
+                                                "%y%m%d"),
+                                         paste0(SR_parameters[3],
+                                                ".pdf"),
+                                         sep = "_")),
+         device = "pdf",
+         units = "cm",
+         width = 54,
+         height = 24)
+
 
 ```
+
+
 
 \
 
