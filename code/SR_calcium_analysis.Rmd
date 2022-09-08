@@ -43,8 +43,7 @@ pacman::p_load(AnlysisOfWaves, # custom functions for analysis and loading of ad
                # cowplot,
                # purrr, dplyr, tidyr, stringr, 
                kableExtra, # wrangling data
-               ggplot2, 
-               # ungeviz, # piloting
+               ggplot2, ungeviz, # piloting
                lmerTest, broom.mixed, emmeans) # tools for mixed effect model computation and multiple comparison
 
 options("scipen" = 999, "digits" = 4)
@@ -624,3 +623,65 @@ emmens_ns_df %>%
 # Ploting 
 
 ## Superplots
+
+
+```{r}
+nested_df
+```
+
+
+```{r, results='show', include=TRUE, collapse = TRUE, fig.width=22, fig.asp = 0.3, out.width='100%'}
+
+pmap(list(nested_df$data, 
+          nested_df$Parameters, 
+          nested_df$dataset_type), 
+     function(data, parameters, dataset_type){
+       data %>% 
+         filter(Condition != "Vehicle") %>%
+         multi_plot_list_func(yaxe_vars = "value",
+                              # my_plot_fun = my_boxplot_and_jitter_func, 
+                              my_plot_fun = superplot_func, 
+                              base_violin = "waves",
+                              dot_layer = "cells",
+                              animal_layer = TRUE,
+                              animal_size = 10,
+                              cell_size = 5,
+                              # wave_size = 2,
+                              animal_alpha = 0.4,
+                              faceted_by_1 = "Condition") %>% 
+         `[[`(1)  +
+         stat_summary(
+           aes(color = Animal),
+           size = 2,
+           geom = "hpline",
+           fun.y = "mean",
+           # col = "black",
+           size = 2,
+           alpha = .5,
+           # linetype="dashed",
+           # shape = "-",
+           # fill = "red"
+         ) +
+         labs(title = dataset_type, 
+              y = parameters)
+       
+     }) %>% 
+  plot_grid(plotlist = .,
+            nrow = 1)
+```
+
+
+export plots
+
+plots can be found in this directory `r `
+```{r}
+
+```
+
+\
+
+<center>FIN</center>
+
+\
+\
+\
