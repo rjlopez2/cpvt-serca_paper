@@ -114,6 +114,7 @@ df40 <-as.data.frame(read_xlsx(here("datasets",
                                     "intact_cells",
                                     "pooled_IntactCells_WL_WS_EAP_OCC_CAFF.xlsx"),
                                sheet = 1, skip = 13))
+
 ```
 
 
@@ -233,6 +234,18 @@ df40_o <- (subset(df40, df40$`For Occu Analysis?`== "yes"))
 
 rm(df40)
 
+```
+
+
+```{r}
+# df40_o
+
+# save(df40_o, file = "intact_cells_dataset.Rdata")
+```
+
+
+```{r}
+load(file = "intact_cells_dataset.Rdata")
 ```
 
 

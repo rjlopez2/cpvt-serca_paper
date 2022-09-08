@@ -412,7 +412,7 @@ emmens_ns_df <- model_raw_nsdf %>%
                                        mutate(across(where(is.double),
                                                      ~ round(.x, digits =2)))))) 
 
-# we explre the size of the coeficient matrix
+# we explore the size of the coeficient matrix
 
 emmens_ns_df %>% 
   mutate(coef_grid = map(em_means, ~coef(pairs(.x)))) %>% 
