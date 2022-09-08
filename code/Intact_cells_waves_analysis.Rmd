@@ -244,11 +244,6 @@ rm(df40)
 ```
 
 
-```{r}
-load(file = "intact_cells_dataset.Rdata")
-```
-
-
 And this is how it looks a subset of the the full curated dataset 
 
 ```{r results='show', include=TRUE}
