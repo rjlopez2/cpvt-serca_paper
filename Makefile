@@ -17,9 +17,7 @@ ifeq ($(DOCKER),TRUE)
 	current_dir=/home/rstudio
 endif
 
-
-HTML_FILES=Intact_cells_waves_analysis.html Perme_cells_waves_analysis.html WB_analysis.html
-
+HTML_FILES= Intact_cells_waves_analysis.html Perme_cells_waves_analysis.html WB_analysis.html SR_calcium_analysis.html
 
 ifeq ($(OUTPUT),TRUE)
 
@@ -51,7 +49,8 @@ $(projekt).tar.gz:
 	docker save $(projekt):latest | gzip > $@
 
 clean:
-	rm -f code/$(HTML_FILES)
+	rm -f code/*.html
+	rm -R figures results
 
 
 test:
